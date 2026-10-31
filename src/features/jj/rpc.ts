@@ -21,6 +21,23 @@ const revisionSchema = {
 export const Status = Rpc.define({
   id: "jello.jj.status",
   methods: {
+    changedFiles: {
+      input: {
+        type: "object",
+        properties: { directory: { type: "string" } },
+        required: ["directory"],
+        additionalProperties: false,
+      },
+      output: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: { path: { type: "string" }, status: { type: "string" } },
+          required: ["path", "status"],
+          additionalProperties: false,
+        },
+      },
+    },
     diff: {
       input: {
         type: "object",

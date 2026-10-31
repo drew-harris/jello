@@ -21,7 +21,7 @@ function RevisionLabel(props: { revision: Revision; open(): void }) {
         <span class="jello-jj-bookmarks" title={props.revision.bookmarks.join(", ")}>{props.revision.bookmarks.join(", ")}</span>
       </Show>
       <Show when={props.revision.empty}><span class="jello-jj-empty" title="Empty revision">○</span></Show>
-      <span class="jello-jj-description" title={props.revision.description || "No description"}>{props.revision.description || "No description"}</span>
+      <span class="jello-jj-description" classList={{ "is-placeholder": !props.revision.description }} title={props.revision.description || "No description"}>{props.revision.description || "No description"}</span>
   </>
   return <Show when={!props.revision.current} fallback={<span class="jello-jj-revision">{content()}</span>}>
     <button type="button" class="jello-jj-revision jello-jj-parent jello-jj-revision-link" onClick={props.open}

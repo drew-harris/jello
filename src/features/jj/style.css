@@ -111,6 +111,20 @@
   gap: 8px;
 }
 
+.jello-jj-commit-files { margin-bottom: 16px; font-size: 12px; }
+.jello-jj-commit-files p { margin: 0; opacity: 0.65; }
+.jello-jj-commit-files-heading { font-weight: 500; }
+.jello-jj-commit-files ul { list-style: none; margin: 6px 0; padding: 0; }
+.jello-jj-commit-files li { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 3px 0; }
+.jello-jj-commit-file-status { flex-shrink: 0; width: 12px; text-align: center; font-size: 10px; font-weight: 600; }
+.jello-jj-commit-file-status[data-status="added"] { color: #398044; }
+.jello-jj-commit-file-status[data-status="modified"] { color: #896b00; }
+.jello-jj-commit-file-status[data-status="removed"] { color: #c54a4a; }
+.jello-jj-commit-files[data-mode="dark"] .jello-jj-commit-file-status[data-status="added"] { color: #8bd391; }
+.jello-jj-commit-files[data-mode="dark"] .jello-jj-commit-file-status[data-status="modified"] { color: #e5c76b; }
+.jello-jj-commit-files[data-mode="dark"] .jello-jj-commit-file-status[data-status="removed"] { color: #e97878; }
+.jello-jj-commit-file-path { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 .jello-jj-message {
   box-sizing: border-box;
   width: 100%;
@@ -178,6 +192,7 @@
   max-width: 22ch;
   opacity: 0.85;
 }
+.jello-jj-description.is-placeholder { font-style: italic; opacity: 0.55; }
 
 .jello-jj-description,
 .jello-jj-bookmarks {

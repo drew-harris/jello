@@ -3,9 +3,14 @@ import { Status } from "./rpc.ts"
 import { readOverview, readStatus } from "./status.ts"
 import { commit } from "./commit.ts"
 import { readRevisionDiff } from "./diff/server.ts"
+import { readChangedFiles } from "./changed-files.ts"
 
 export async function setupJJ(ctx: Plugin.Context) {
   await ctx.rpc.register(Status, {
+    changedFiles: async (input, context) => {
+      const { directory } = input as { directory: string }
+      return readChangedFiles(directory, context.signal)
+    },
     diff: async (input, context) => {
       const { directory, commitID } = input as { directory: string; commitID: string }
       return readRevisionDiff(directory, commitID, context.signal)

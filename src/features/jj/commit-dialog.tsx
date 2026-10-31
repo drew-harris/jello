@@ -1,10 +1,12 @@
-import { createSignal, Show } from "solid-js"
+import { createSignal, For, onMount, Show } from "solid-js"
 import { usePlugin } from "@opencode/plugin/gui"
 import { errorMessage } from "./errors"
+import type { ChangedFile } from "./changed-files"
 
 export function CommitDialog(props: {
   directory: string
   commit(message: string): Promise<void>
+  loadFiles(): Promise<ChangedFile[]>
   close(): void
   onCommitted(): void
 }) {
@@ -13,6 +15,13 @@ export function CommitDialog(props: {
   const [message, setMessage] = createSignal("")
   const [busy, setBusy] = createSignal(false)
   const [error, setError] = createSignal<string>()
+  const [files, setFiles] = createSignal<ChangedFile[]>([])
+  const [loadingFiles, setLoadingFiles] = createSignal(true)
+  const [filesError, setFilesError] = createSignal<string>()
+  const fileLimit = 10
+  onMount(() => {
+    void props.loadFiles().then(setFiles).catch((error) => setFilesError(errorMessage(error))).finally(() => setLoadingFiles(false))
+  })
   const submit = async () => {
     if (busy() || !message().trim()) return
     setBusy(true)
@@ -36,6 +45,18 @@ export function CommitDialog(props: {
         <ui.Button variant="contrast" busy={busy()} disabled={!message().trim() || busy()} onClick={() => void submit()}>Commit</ui.Button>
       </div>}
     >
+      <section class="jello-jj-commit-files" aria-label="Changed files" data-mode={ctx.appearance.mode()}>
+        <Show when={!loadingFiles()} fallback={<p role="status">Loading changed files…</p>}>
+          <Show when={!filesError()} fallback={<p role="alert">Could not load changed files: {filesError()}</p>}>
+            <p class="jello-jj-commit-files-heading">{files().length} changed {files().length === 1 ? "file" : "files"}</p>
+            <ul><For each={files().slice(0, fileLimit)}>{(file) => <li>
+              <span class="jello-jj-commit-file-status" data-status={file.status} title={file.status}>{file.status === "removed" ? "D" : file.status.slice(0, 1).toUpperCase()}</span>
+              <span class="jello-jj-commit-file-path" title={file.path}>{file.path}</span>
+            </li>}</For></ul>
+            <Show when={files().length > fileLimit}><p>and {files().length - fileLimit} more…</p></Show>
+          </Show>
+        </Show>
+      </section>
       <label class="jello-jj-message-label">
         Commit message
         <textarea

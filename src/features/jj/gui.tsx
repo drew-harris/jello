@@ -7,6 +7,7 @@ import { CommitDialog } from "./commit-dialog"
 import { Status } from "./rpc"
 import { setupDiff } from "./diff/gui"
 import css from "./style.css?inline"
+import type { ChangedFile } from "./changed-files"
 
 // All JJ window contributions live here; the Jello shell only composes features.
 export const setupJJ: Plugin.Setup<typeof definition> = (ctx) => {
@@ -41,6 +42,7 @@ export const setupJJ: Plugin.Setup<typeof definition> = (ctx) => {
         close={dialog.close}
         onCommitted={() => setRevision((value) => value + 1)}
         commit={async (message) => { await client.rpc(Status).commit({ directory, message }) }}
+        loadFiles={async () => await client.rpc(Status).changedFiles({ directory }) as ChangedFile[]}
       />)
     },
   }))
