@@ -1,10 +1,11 @@
-import { createMemo, createResource, createSignal, For, onCleanup, Show } from "solid-js"
+import { createEffect, createMemo, createResource, createSignal, For, onCleanup, Show } from "solid-js"
+import { createStore, reconcile } from "solid-js/store"
 import { usePlugin, type MountedSession } from "@opencode/plugin/gui"
 import { Status } from "../rpc"
 import { errorMessage } from "../errors"
 import { diffTabID } from "../diff/tab"
 import { revisionAge } from "../diff/time"
-import { edgePath, laneX, layoutHistory, rowOffsets, ROW_HEIGHT } from "./layout"
+import { edgePath, graphRowID, laneX, layoutHistory, rowOffsets, ROW_HEIGHT } from "./layout"
 import { changeIDLabel, type TreeCommit, type TreeHistory } from "./model"
 import { ChangeContextMenu } from "./context-menu"
 import { DescribeDialog } from "./describe-dialog"
@@ -69,7 +70,11 @@ export function TreeView(props: { session: MountedSession; revision: number; onC
     },
   )
   const commits = () => history.latest?.data?.commits ?? []
-  const graph = createMemo(() => layoutHistory(commits()))
+  const [graphState, setGraph] = createStore<ReturnType<typeof layoutHistory>>({ rows: [], lanes: 1 })
+  // Retain keyed row/component identities when polling returns fresh objects.
+  // This keeps expanded resources mounted and their existing file lists visible.
+  createEffect(() => setGraph(reconcile(layoutHistory(commits()), { key: "id" })))
+  const graph = () => graphState
   const selected = () => {
     const previous = selection()
     const exact = commits().find((commit) => commit.commitID === previous?.commitID)
@@ -79,7 +84,7 @@ export function TreeView(props: { session: MountedSession; revision: number; onC
       ?? commits().find((commit) => commit.current) ?? commits()[0]
   }
   const gutter = () => Math.max(42, graph().lanes * 18 + 24)
-  const offsets = createMemo(() => rowOffsets(commits(), rowHeights()))
+  const offsets = createMemo(() => rowOffsets(graph().rows.map((row) => row.commit), rowHeights()))
   const rowCenter = (index: number) => offsets()[index] + ROW_HEIGHT / 2
   const boundaryY = (index: number) => offsets()[index] + ROW_HEIGHT - 5
   const measureRow = (element: HTMLLIElement, commitID: string) => {
@@ -105,7 +110,7 @@ export function TreeView(props: { session: MountedSession; revision: number; onC
     const commit = commits()[index]
     if (!commit) return
     setSelection({ commitID: commit.commitID, changeID: commit.changeID })
-    const button = buttons.get(commit.commitID)
+    const button = buttons.get(graphRowID(commit))
     if (focus) button?.focus({ preventScroll: true })
     button?.scrollIntoView({ block: "nearest" })
   }
@@ -213,10 +218,11 @@ export function TreeView(props: { session: MountedSession; revision: number; onC
               </g>}</For>
             </svg>
             <ol class="jello-jj-tree-rows" aria-label="Commits">
-              <For each={graph().rows}>{(row, index) => <li ref={(element) => measureRow(element, row.commit.commitID)}>
+              <For each={graph().rows}>{(row, index) => <li ref={(element) => measureRow(element, row.id)}>
                 <button type="button" class="jello-jj-tree-row" ref={(element) => {
-                  buttons.set(row.commit.commitID, element)
-                  onCleanup(() => buttons.delete(row.commit.commitID))
+                  const id = row.id
+                  buttons.set(id, element)
+                  onCleanup(() => buttons.delete(id))
                 }} classList={{ "is-selected": selected()?.commitID === row.commit.commitID, "is-working": row.commit.current }}
                   tabIndex={selected()?.commitID === row.commit.commitID ? 0 : -1}
                   aria-pressed={selected()?.commitID === row.commit.commitID}

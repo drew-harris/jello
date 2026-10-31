@@ -3,6 +3,9 @@ import type { TreeCommit } from "./model"
 export const ROW_HEIGHT = 42
 export const LANE_WIDTH = 18
 export const laneX = (lane: number) => 18 + lane * LANE_WIDTH
+// A normal change survives snapshots/rewrites; divergent versions need distinct
+// rows so they cannot be reconciled into one another.
+export const graphRowID = (commit: TreeCommit) => commit.divergent ? commit.commitID : commit.changeID
 
 export interface GraphEdge {
   from: number
@@ -12,6 +15,7 @@ export interface GraphEdge {
 }
 
 export interface GraphRow {
+  id: string
   commit: TreeCommit
   lane: number
   color: number
@@ -58,7 +62,7 @@ export function layoutHistory(commits: TreeCommit[]): { rows: GraphRow[]; lanes:
     const boundaryLane = parents.length ? lanes.length : lane
     if (missingParents.length) edges.push({ from: lane, to: boundaryLane, color, missing: true })
     width = Math.max(width, lane + 1, lanes.length, missingParents.length ? boundaryLane + 1 : 0)
-    rows.push({ commit, lane, color, edges, missingParents })
+    rows.push({ id: graphRowID(commit), commit, lane, color, edges, missingParents })
     while (lanes.length && !lanes.at(-1)) lanes.pop()
   }
   return { rows, lanes: width }
@@ -74,6 +78,6 @@ export function edgePath(from: number, to: number, y: number, height = ROW_HEIGH
 
 export function rowOffsets(commits: TreeCommit[], heights: Record<string, number>): number[] {
   const offsets = [0]
-  for (const commit of commits) offsets.push(offsets.at(-1)! + Math.max(ROW_HEIGHT, heights[commit.commitID] ?? ROW_HEIGHT))
+  for (const commit of commits) offsets.push(offsets.at(-1)! + Math.max(ROW_HEIGHT, heights[graphRowID(commit)] ?? ROW_HEIGHT))
   return offsets
 }

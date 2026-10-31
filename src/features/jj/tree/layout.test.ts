@@ -1,5 +1,7 @@
 import { strict as assert } from "node:assert"
 import { test } from "node:test"
+import { createStore, reconcile } from "solid-js/store"
+import { isServer } from "solid-js/web"
 import { edgePath, laneX, layoutHistory, rowOffsets, ROW_HEIGHT } from "./layout"
 import { changeIDLabel, parseHistory, type TreeCommit } from "./model"
 
@@ -77,6 +79,23 @@ test("expanded rows move graph nodes and edge endpoints by their measured height
   assert.equal(edgePath(0, 0, center, 180), `M ${laneX(0)} ${center} V ${180 + center}`)
   assert.ok(edgePath(0, 1, center, 180).endsWith(`${laneX(1)} ${180 + center}`))
   assert.deepEqual(rowOffsets(commits, { a: 0 }), [0, ROW_HEIGHT, ROW_HEIGHT * 2, ROW_HEIGHT * 3])
+})
+
+// The SSR store intentionally replaces objects. Exercise actual GUI store
+// behavior with: bun --conditions=browser test src/features/jj/tree/layout.test.ts
+test("history reconciliation preserves row identity across refreshes and working-copy snapshots", { skip: isServer }, () => {
+  const initial = [commit("a", ["b"], { changeID: "working", current: true }), commit("b")]
+  const [graph, setGraph] = createStore(layoutHistory(initial))
+  const working = graph.rows[0]
+  const parent = graph.rows[1]
+  setGraph(reconcile(layoutHistory(initial.map((item) => ({ ...item }))), { key: "id" }))
+  assert.equal(graph.rows[0], working)
+  assert.equal(graph.rows[1], parent)
+  setGraph(reconcile(layoutHistory([commit("rewritten", ["b"], { changeID: "working", current: true }), commit("b")]), { key: "id" }))
+  assert.equal(graph.rows[0], working)
+  assert.equal(graph.rows[0].commit.commitID, "rewritten")
+  assert.equal(graph.rows[1], parent)
+  assert.deepEqual(rowOffsets(graph.rows.map((row) => row.commit), { working: 180 }), [0, 180, 180 + ROW_HEIGHT])
 })
 
 test("JSON lines preserve multiline descriptions, Unicode, and bookmarks", () => {
