@@ -19,16 +19,20 @@ bundles. Prefer the app's icon catalog over hand-written SVGs when a suitable
 icon exists.
 
 ```tsx
-import { usePlugin } from "@opencode/plugin/gui"
+import { usePlugin } from "@opencode/plugin/gui";
 
 function DescribeAction() {
-  const ctx = usePlugin()
-  const ui = ctx.ui
+  const ctx = usePlugin();
+  const ui = ctx.ui;
 
-  return <button type="button">
-    <span aria-hidden="true"><ui.Icon name="edit" size="small" /></span>
-    <span>Describe</span>
-  </button>
+  return (
+    <button type="button">
+      <span aria-hidden="true">
+        <ui.Icon name="edit" size="small" />
+      </span>
+      <span>Describe</span>
+    </button>
+  );
 }
 ```
 
@@ -45,3 +49,9 @@ function DescribeAction() {
 
 See `src/features/jj/tree/context-menu.tsx` for a working example and the GUI
 documentation's **App components** section for the SDK reference.
+
+## notice!!!
+
+This plugin will mostly be used on a really big git/jj repo thats accessed remotely
+
+Running git / jj commands may take a while to complete. always keep in mind loading states. pre-loading. caching etc, to make sure that things feel good to use
