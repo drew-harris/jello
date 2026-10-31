@@ -14,6 +14,7 @@ import { reuseDiffFiles } from "./files"
 import { diffScrollAmount } from "./shortcuts"
 import { MultiFileDiff } from "./multi-file"
 import { createDiffScroller } from "./scroll"
+import type { definition } from "../../../gui/definition"
 
 const fileKind = (file: FileDiffMetadata) => ({ new: "A", deleted: "D", "rename-pure": "R", "rename-changed": "R", change: "M" })[file.type]
 const count = (file: FileDiffMetadata, kind: "additionLines" | "deletionLines") => file.hunks.reduce((total, hunk) => total + hunk[kind], 0)
@@ -160,13 +161,18 @@ export function DiffView(props: DiffViewProps) {
 }
 
 function DiffContents(props: DiffViewProps) {
-  const ctx = usePlugin()
+  const ctx = usePlugin<typeof definition>()
   const ui = ctx.ui
-  const [layout, setLayout] = createSignal<"unified" | "split">("unified")
-  const [multiFile, setMultiFile] = createSignal(false)
+  const preferences = ctx.stores.jjDiff
+  const layout = () => preferences.value.layout
+  const setLayout = (value: "unified" | "split") => preferences.update((draft) => { draft.layout = value })
+  const multiFile = () => preferences.value.multiFile
+  const setMultiFile = (value: boolean) => preferences.update((draft) => { draft.multiFile = value })
   const [navigation, setNavigation] = createSignal(0)
-  const [wrap, setWrap] = createSignal(true)
-  const [sidebar, setSidebar] = createSignal(!(props.requestedFile ?? parseDiffTabID(props.tabID)?.file))
+  const wrap = () => preferences.value.wrap
+  const setWrap = (value: boolean) => preferences.update((draft) => { draft.wrap = value })
+  const sidebar = () => preferences.value.sidebar
+  const setSidebar = (value: boolean) => preferences.update((draft) => { draft.sidebar = value })
   const [sidebarWidth, setSidebarWidth] = createSignal(240)
   const [resizing, setResizing] = createSignal(false)
   let workspace!: HTMLDivElement
@@ -263,11 +269,6 @@ function DiffContents(props: DiffViewProps) {
   createEffect(on([() => props.tabID, () => props.focusRevision, () => props.requestedFile], () => {
     const target = parseDiffTabID(props.tabID)
     const path = props.requestedFile ?? target?.file
-    if (path) {
-      // Reopening a file-targeted tab restores the clicked file and hidden tree,
-      // even if the user navigated elsewhere in that tab in the meantime.
-      setSidebar(false)
-    }
     if (!path) return
     const loaded = result()
     if (loaded?.id !== props.tabID) return

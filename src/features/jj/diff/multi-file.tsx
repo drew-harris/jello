@@ -38,7 +38,17 @@ export function MultiFileDiff(props: {
       stickyHeaders: true,
       itemMetrics: { lineHeight: 23, hunkSeparatorHeight: 24, spacing: 0 },
       layout: { paddingTop: 0, paddingBottom: 16, gap: 12 },
-      unsafeCSS: diffThemeCSS(ctx.appearance.mode() === "dark"),
+      unsafeCSS: `${diffThemeCSS(ctx.appearance.mode() === "dark")}
+        [data-diffs-header=default] {
+          padding: 10px 16px;
+          background-color: ${ctx.appearance.mode() === "dark" ? "#25282c" : "#edf0f4"};
+        }
+        [data-header-content] { gap: 12px; }
+        [data-header-content] [data-title], [data-header-content] [data-prev-name] {
+          font-family: var(--diffs-font-family);
+          letter-spacing: 0.025em;
+          line-height: 1.6;
+        }`,
       renderHeaderMetadata: (file) => {
         if (!("hunks" in file)) return
         if (!file.hunks.length) return "No text hunks (binary, rename, empty file, or mode-only change)"
