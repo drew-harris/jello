@@ -24,6 +24,33 @@ const revisionSchema = {
 export const Status = Rpc.define({
   id: "jello.jj.status",
   methods: {
+    squashDetails: {
+      input: {
+        type: "object", properties: { directory: { type: "string" }, commitID: { type: "string", minLength: 40, maxLength: 64 } },
+        required: ["directory", "commitID"], additionalProperties: false,
+      },
+      output: {
+        type: "object", properties: {
+          sourceDescription: { type: "string" },
+          parents: { type: "array", items: {
+            type: "object", properties: {
+              commitID: { type: "string" }, changeID: { type: "string" }, description: { type: "string" }, immutable: { type: "boolean" },
+            }, required: ["commitID", "changeID", "description", "immutable"], additionalProperties: false,
+          } },
+        }, required: ["sourceDescription", "parents"], additionalProperties: false,
+      },
+    },
+    squashBelow: {
+      input: {
+        type: "object", properties: {
+          directory: { type: "string" }, commitID: { type: "string", minLength: 40, maxLength: 64 },
+          parentID: { type: "string", minLength: 40, maxLength: 64 }, message: { type: "string" },
+        }, required: ["directory", "commitID", "parentID"], additionalProperties: false,
+      },
+      output: {
+        type: "object", properties: { squashed: { type: "boolean" } }, required: ["squashed"], additionalProperties: false,
+      },
+    },
     edit: {
       input: {
         type: "object",

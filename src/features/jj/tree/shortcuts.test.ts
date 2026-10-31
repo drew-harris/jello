@@ -9,6 +9,8 @@ test("tree shortcuts map the requested keys and require Shift for bookmarks", ()
     assert.equal(treeShortcut(key(input)), action)
   }
   assert.equal(treeShortcut(key("B", { shiftKey: true })), "bookmark")
+  assert.equal(treeShortcut(key("S", { shiftKey: true })), "squash")
+  assert.equal(treeShortcut(key("s")), undefined)
   for (const input of ["b", "B", "x"]) assert.equal(treeShortcut(key(input)), undefined)
   assert.equal(treeShortcut(key("J", { shiftKey: true })), undefined)
 })
@@ -19,6 +21,7 @@ test("tree shortcuts ignore modifiers, composition, and repeated actions but all
   }
   for (const input of ["n", "l", "a", "d", "Enter"]) assert.equal(treeShortcut(key(input, { repeat: true })), undefined)
   assert.equal(treeShortcut(key("B", { shiftKey: true, repeat: true })), undefined)
+  assert.equal(treeShortcut(key("S", { shiftKey: true, repeat: true })), undefined)
   assert.equal(treeShortcut(key("j", { repeat: true })), "down")
   assert.equal(treeShortcut(key("k", { repeat: true })), "up")
 })

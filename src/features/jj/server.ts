@@ -10,9 +10,19 @@ import { describe } from "./tree/describe.ts"
 import { newChange } from "./tree/new.ts"
 import { listBookmarks, setBookmark } from "./tree/bookmarks.ts"
 import { editChange } from "./tree/edit.ts"
+import { readSquashDetails, squashBelow } from "./tree/squash.ts"
 
 export async function setupJJ(ctx: Plugin.Context) {
   await ctx.rpc.register(Status, {
+    squashDetails: async (input, context) => {
+      const { directory, commitID } = input as { directory: string; commitID: string }
+      return readSquashDetails(directory, commitID, context.signal)
+    },
+    squashBelow: async (input, context) => {
+      const { directory, commitID, parentID, message } = input as { directory: string; commitID: string; parentID: string; message?: string }
+      await squashBelow(directory, commitID, parentID, message, context.signal)
+      return { squashed: true }
+    },
     edit: async (input, context) => {
       const { directory, commitID } = input as { directory: string; commitID: string }
       await editChange(directory, commitID, context.signal)

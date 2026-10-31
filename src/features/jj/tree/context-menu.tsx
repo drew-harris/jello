@@ -13,6 +13,8 @@ export function ChangeContextMenu(props: {
   describe(): void
   edit(): void
   setBookmark(): void
+  squashDisabled: boolean
+  squash(): void
 }) {
   const ctx = usePlugin()
   const ui = ctx.ui
@@ -75,6 +77,10 @@ export function ChangeContextMenu(props: {
         onClick={props.describe}><span aria-hidden="true"><ui.Icon name="edit" size="small" /></span><span class="jello-jj-tree-menu-label">Describe</span></button>
       <button type="button" role="menuitem" disabled={props.newDisabled} title="Move an existing bookmark here or create a new one"
         onClick={props.setBookmark}><span aria-hidden="true"><ui.Icon name="branch" size="small" /></span><span class="jello-jj-tree-menu-label">Set bookmark</span></button>
+      <button type="button" role="menuitem" disabled={props.squashDisabled}
+        title="Squash this change into a parent (Shift+S)" onClick={props.squash}>
+        <span aria-hidden="true"><ui.Icon name="arrow-down-to-line" size="small" /></span><span class="jello-jj-tree-menu-label">Squash below</span>
+      </button>
       <button type="button" role="menuitem" disabled={props.disabled} class="is-danger"
         title={props.disabled ? "Immutable changes cannot be abandoned" : "Run jj abandon on this change"}
         onClick={props.abandon}><span aria-hidden="true"><ui.Icon name="circle-ban-sign" size="small" /></span><span class="jello-jj-tree-menu-label">Abandon</span></button>

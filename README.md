@@ -31,6 +31,16 @@ change. The tree and status bar refresh after success, and errors appear as toas
 to it. A progress toast stays visible during the operation, then the tree and
 status bar refresh. Immutable changes cannot be edited.
 
+**Squash below** (or **Shift+S** while the tree is focused) squashes the selected
+change into a direct parent, not the next visible row. The dialog loads parent
+details, including parents outside the current log, and asks you to choose when
+there are multiple parents. Immutable sources and destinations are protected.
+When both descriptions are nonempty, review a multiline editor prefilled with
+the parent's description, a blank line, and the source's description. Otherwise
+the one nonempty description is kept (or the result stays empty). Confirming
+runs `jj squash --from … --into … --message …` without a terminal editor, removes
+the source change, and refreshes the tree and status bar. Errors stay in the dialog.
+
 **Set bookmark** opens a searchable bookmark picker. Choose an existing name to
 move it to the clicked commit (including backwards or sideways), or type a new
 name to create it. Use ↑/↓ for suggestions and Enter to save. Bookmark lists are

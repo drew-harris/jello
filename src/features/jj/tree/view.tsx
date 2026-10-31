@@ -13,6 +13,8 @@ import type { definition } from "../../../gui/definition"
 import { RevisionFiles } from "./files"
 import { BookmarkDialog } from "./bookmark-dialog"
 import { treeShortcut } from "./shortcuts"
+import { SquashDialog } from "./squash-dialog"
+import type { SquashDetails } from "./squash-model"
 
 function ChangeID(props: { commit: TreeCommit }) {
   const label = () => changeIDLabel(props.commit)
@@ -56,6 +58,7 @@ export function TreeView(props: { session: MountedSession; revision: number; foc
   const [abandoning, setAbandoning] = createSignal(false)
   const [creating, setCreating] = createSignal(false)
   const [editing, setEditing] = createSignal(false)
+  const [squashing, setSquashing] = createSignal(false)
   const expansionState = () => ctx.stores.jjTreeExpanded(props.session)
   const expanded = createMemo(() => {
     const value = expansionState().value
@@ -68,7 +71,7 @@ export function TreeView(props: { session: MountedSession; revision: number; foc
     else next.add(changeID)
     expansionState().set({ directory: props.session.directory, changes: Array.from(next) })
   }
-  const mutating = () => abandoning() || creating() || editing()
+  const mutating = () => abandoning() || creating() || editing() || squashing()
   const [contextMenu, setContextMenu] = createSignal<{ x: number; y: number; commit: TreeCommit; trigger: HTMLButtonElement }>()
   const buttons = new Map<string, HTMLButtonElement>()
   const [history, { refetch }] = createResource(
@@ -218,6 +221,31 @@ export function TreeView(props: { session: MountedSession; revision: number; foc
       }} />)
   }
 
+  const squashDisabled = (target: TreeCommit) => target.immutable || !target.parents.length || mutating()
+    || target.parents.every((id) => root(id) || commits().find((commit) => commit.commitID === id)?.immutable === true)
+  const squashChange = (target: TreeCommit) => {
+    if (squashDisabled(target)) return
+    const directory = props.session.directory
+    const client = props.session.server.client
+    // Copy the exact source ID: polling may reconcile and mutate the row object.
+    const commitID = target.commitID
+    closeMenu(true)
+    ctx.dialogs.open((dialog) => <SquashDialog changeID={target.changeID} close={dialog.close}
+      load={async () => await client.rpc(Status).squashDetails({ directory, commitID }) as SquashDetails}
+      save={async (parentID, message) => {
+        if (mutating()) throw new Error("Another change operation is still running.")
+        setSquashing(true)
+        const progress = ctx.toast.show({ variant: "loading", title: "Squashing change into parent…", persistent: true })
+        try {
+          await client.rpc(Status).squashBelow({ directory, commitID, parentID, ...(message !== undefined ? { message } : {}) })
+          props.onChanged()
+        } finally {
+          progress.dismiss()
+          setSquashing(false)
+        }
+      }} />)
+  }
+
   const createChange = async (commitID?: string) => {
     if (mutating()) return
     const directory = props.session.directory
@@ -253,6 +281,7 @@ export function TreeView(props: { session: MountedSession; revision: number; foc
     else if (action === "abandon") void abandonChange(target, true)
     else if (action === "diff") openDiff()
     else if (action === "describe") describeChange(target)
+    else if (action === "squash") squashChange(target)
     else if (!expanded().has(target.changeID)) {
       setSelection(target)
       toggleFiles(target.changeID)
@@ -268,7 +297,7 @@ export function TreeView(props: { session: MountedSession; revision: number; foc
     <header class="jello-jj-tree-toolbar">
       <Show when={focused() && !ctx.dialogs.active() && !confirming() && !contextMenu()}>
         <span class="jello-jj-tree-keyboard" role="img" aria-label="Tree keyboard shortcuts active"
-          title="Keyboard shortcuts active: j/k select, n new change, Shift+B set bookmark, l expand files, a abandon (confirmation), d diff, Enter describe">
+          title="Keyboard shortcuts active: j/k select, n new change, Shift+B set bookmark, l expand files, a abandon (confirmation), d diff, Enter describe, Shift+S squash below">
           <span aria-hidden="true"><ui.Icon name="keyboard" size="small" /></span>
         </span>
       </Show>
@@ -399,6 +428,7 @@ export function TreeView(props: { session: MountedSession; revision: number; foc
       newDisabled={mutating()} newChange={() => void createChange(menu.commit.commitID)}
       setBookmark={() => bookmarkChange(menu.commit)}
       edit={() => void editChange(menu.commit)}
+      squashDisabled={squashDisabled(menu.commit)} squash={() => squashChange(menu.commit)}
       close={closeMenu} abandon={() => void abandonChange()} describe={() => describeChange(menu.commit)} />}</Show>
   </div>
 }
