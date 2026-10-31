@@ -4,9 +4,19 @@ Jello: an OpenCode Desktop GUI plugin.
 
 ## JJ feature
 
-Run `/jj` to open the **JJ** side panel with `jj status` for the current session's
-directory. Run it again or click **Refresh** to update the output. Requires `jj`
-on the OpenCode server's PATH.
+Run `/tree` (or `/jj`), or choose **Open JJ Tree** in the command palette (⌘⇧P),
+to open the **JJ Tree** panel for the current session's directory. It renders a
+native commit list with colored SVG ancestry lanes, working-copy rings, immutable
+diamonds, bookmarks, and conflict/divergence badges. Requires `jj` on the OpenCode
+server's PATH.
+
+The view respects the repository's default `jj log` revset. Dashed, capped edges
+indicate parents outside the displayed history; they do not infer connections
+through hidden revisions. Load more adds 100 revisions at a time (up to 2,000).
+Select a commit to inspect its description, author and timestamp, copy IDs, or
+open its diff. Use ↑/↓ to navigate, Enter or double-click to open a diff, and **@**
+to jump to the working copy. Refresh runs on window focus, reopening the panel,
+and after committing; the toolbar also has a manual refresh action.
 
 A compact, read-only bottom toolbar shows cards for the current revision, parents,
 and grandparents:
@@ -17,7 +27,7 @@ added lines are paired within each contiguous edit block to count replacements
 without double-counting; binary changes do not contribute text lines. Conflicts are
 highlighted. Parent details hide on narrow windows. It refreshes
 every 10 seconds while the window is visible, and on focus. Open the
-full status panel with `/jj`; hover over the status to see the raw output or error.
+tree panel with `/tree`; hover over the status to see the raw output or error.
 
 Click **Parent** or **Earlier** to open a **JJ Diff** tab for that exact commit.
 The viewer uses [Pierre Diffs](https://diffs.com/) with syntax highlighting,
@@ -48,8 +58,9 @@ src/
 │       ├── status.ts   Runs jj status
 │       ├── overview.ts Structured revision metadata and jj log template
 │       ├── overview.test.ts
-│       ├── gui.tsx     JJ panel, /jj command, launcher, and bars
-│       ├── panel.tsx   Full status output
+│       ├── gui.tsx     JJ Tree panel, commands, launcher, and bars
+│       ├── panel.tsx   Session-scoped tree boundary
+│       ├── tree/       Structured history, lane layout, SVG/list components, tests
 │       ├── status-bar.tsx
 │       ├── status-summary.ts
 │       ├── status-summary.test.ts

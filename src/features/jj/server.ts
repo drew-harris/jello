@@ -4,9 +4,14 @@ import { readOverview, readStatus } from "./status.ts"
 import { commit } from "./commit.ts"
 import { readRevisionDiff } from "./diff/server.ts"
 import { readChangedFiles } from "./changed-files.ts"
+import { readTree } from "./tree/server.ts"
 
 export async function setupJJ(ctx: Plugin.Context) {
   await ctx.rpc.register(Status, {
+    tree: async (input, context) => {
+      const { directory, limit } = input as { directory: string; limit: number }
+      return readTree(directory, limit, context.signal)
+    },
     changedFiles: async (input, context) => {
       const { directory } = input as { directory: string }
       return readChangedFiles(directory, context.signal)

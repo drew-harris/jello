@@ -7,6 +7,7 @@ import { CommitDialog } from "./commit-dialog"
 import { Status } from "./rpc"
 import { setupDiff } from "./diff/gui"
 import css from "./style.css?inline"
+import treeCSS from "./tree/style.css?inline"
 import type { ChangedFile } from "./changed-files"
 
 // All JJ window contributions live here; the Jello shell only composes features.
@@ -48,11 +49,12 @@ export const setupJJ: Plugin.Setup<typeof definition> = (ctx) => {
   }))
 
   ctx.add(Style, css)
+  ctx.add(Style, treeCSS)
   ctx.add(Slot, { at: "window.bottom", render: () => <StatusBar revision={revision()} /> })
 
   const tab: PanelTab = {
     id: "jj",
-    title: "JJ",
+    title: "JJ Tree",
     closable: "compact",
     fallback: true,
   }
@@ -60,7 +62,7 @@ export const setupJJ: Plugin.Setup<typeof definition> = (ctx) => {
     id: "jj",
     region: "side",
     mobile: {
-      title: "JJ",
+      title: "JJ Tree",
       order: 50,
       kind: "menu",
       icon: "extensions",
@@ -70,7 +72,18 @@ export const setupJJ: Plugin.Setup<typeof definition> = (ctx) => {
   })
   ctx.add(Command, (): Command => ({
     id: "jj.open",
-    title: "Open JJ",
+    title: "Open JJ Tree",
+    keywords: "tree log history commits graph",
+    group: "JJ",
+    section: "session",
+    slash: { name: "tree" },
+    enabled: !!ctx.sessions.current(),
+    run: open,
+  }))
+  ctx.add(Command, (): Command => ({
+    id: "jj.tree",
+    title: "Open JJ Tree",
+    hidden: true,
     group: "JJ",
     section: "session",
     slash: { name: "jj" },
@@ -79,7 +92,7 @@ export const setupJJ: Plugin.Setup<typeof definition> = (ctx) => {
   }))
   ctx.add(Command, (): Command => ({
     id: "jj.toggle",
-    title: "Toggle JJ panel",
+    title: "Toggle JJ Tree panel",
     group: "JJ",
     section: "session",
     enabled: !!ctx.sessions.current(),
@@ -90,7 +103,7 @@ export const setupJJ: Plugin.Setup<typeof definition> = (ctx) => {
     return {
       menu: "session.panel",
       id: "jj.open",
-      title: "JJ",
+      title: "JJ Tree",
       icon: "extensions",
       keybind: `${ctx.id}.jj.toggle`,
       opened: !!session && ctx.layout.state(key, session) !== "closed",

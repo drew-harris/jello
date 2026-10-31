@@ -1,39 +1,16 @@
-import { createResource, Show } from "solid-js"
+import { Show, Suspense } from "solid-js"
 import { usePlugin, type MountedSession } from "@opencode/plugin/gui"
-import { Status } from "./rpc"
-import type { definition } from "../../gui/definition"
-import { errorMessage } from "./errors"
+import { TreeView } from "./tree/view"
 
 // Read props.session reactively: the panel stays mounted across sessions.
 export function PanelView(props: { readonly session: MountedSession; readonly revision: number }) {
-  const ctx = usePlugin<typeof definition>()
-  const ui = ctx.ui
-  const [status, { refetch }] = createResource(
-    () => ({ directory: props.session.directory, client: props.session.server.client, revision: props.revision }),
-    async ({ directory, client }) => {
-      try {
-        const result = (await client.rpc(Status).status({ directory })) as { text: string }
-        return { text: result.text, error: false }
-      } catch (error) {
-        return { text: errorMessage(error), error: true }
-      }
-    },
-  )
-
-  return (
-    <div class="jello-jj-panel">
-      <h2>jj status</h2>
-      <p>Session directory: {props.session.directory}</p>
-      <div class="jello-jj-actions">
-        <ui.Button busy={status.loading} onClick={() => void refetch()}>
-          Refresh
-        </ui.Button>
-      </div>
-      <Show when={status.loading} fallback={
-        <pre class="jello-jj-status" role={status()?.error ? "alert" : "status"}>{status()?.text}</pre>
-      }>
-        <p role="status">Loading jj status…</p>
+  const ctx = usePlugin()
+  return <section class="jello-jj-tree" aria-label="JJ commit history" data-mode={ctx.appearance.mode()}
+    style={{ "--tree-mono": ctx.appearance.font("mono") }}>
+    <Suspense fallback={<div class="jello-jj-tree-empty" role="status">Loading history…</div>}>
+      <Show keyed when={`${props.session.server.id}:${props.session.directory}`}>
+        {(_key) => <TreeView session={props.session} revision={props.revision} />}
       </Show>
-    </div>
-  )
+    </Suspense>
+  </section>
 }

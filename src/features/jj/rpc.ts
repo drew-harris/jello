@@ -21,6 +21,39 @@ const revisionSchema = {
 export const Status = Rpc.define({
   id: "jello.jj.status",
   methods: {
+    tree: {
+      input: {
+        type: "object",
+        properties: { directory: { type: "string" }, limit: { type: "integer", minimum: 20, maximum: 2000 } },
+        required: ["directory", "limit"],
+        additionalProperties: false,
+      },
+      output: {
+        type: "object",
+        properties: {
+          hasMore: { type: "boolean" },
+          commits: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                commitID: { type: "string" }, changeID: { type: "string" },
+                changeIDPrefix: { type: "string" },
+                parents: { type: "array", items: { type: "string" } },
+                description: { type: "string" }, author: { type: "string" }, timestamp: { type: "string" },
+                bookmarks: { type: "array", items: { type: "string" } },
+                current: { type: "boolean" }, immutable: { type: "boolean" }, empty: { type: "boolean" },
+                conflict: { type: "boolean" }, divergent: { type: "boolean" },
+              },
+              required: ["commitID", "changeID", "changeIDPrefix", "parents", "description", "author", "timestamp", "bookmarks", "current", "immutable", "empty", "conflict", "divergent"],
+              additionalProperties: false,
+            },
+          },
+        },
+        required: ["commits", "hasMore"],
+        additionalProperties: false,
+      },
+    },
     changedFiles: {
       input: {
         type: "object",
