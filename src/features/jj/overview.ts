@@ -4,6 +4,8 @@ export interface Revision {
   commitID: string
   changeID: string
   changeID8: string
+  fullChangeID?: string
+  divergent?: boolean
   timestamp: string
   bookmarks: string[]
   description: string
@@ -23,6 +25,8 @@ export interface Overview {
 export const revisionTemplate = [
   "\"{\"",
   "'\"commitID\":' ++ json(self.commit_id()) ++ ','",
+  "'\"fullChangeID\":' ++ json(self.change_id()) ++ ','",
+  "'\"divergent\":' ++ json(divergent) ++ ','",
   "'\"changeID\":' ++ json(self.change_id().shortest().prefix())",
   "',\"changeID8\":' ++ json(self.change_id().short(8))",
   "',\"timestamp\":' ++ json(committer.timestamp().format(\"%Y-%m-%dT%H:%M:%S%:z\"))",

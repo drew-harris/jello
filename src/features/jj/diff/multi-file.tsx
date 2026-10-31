@@ -1,0 +1,59 @@
+import { CodeView, type FileDiffMetadata } from "@pierre/diffs"
+import { createEffect, on, onCleanup, onMount } from "solid-js"
+import { usePlugin } from "@opencode/plugin/gui"
+import { diffThemeCSS } from "./theme"
+import { createDiffStack, stackFileIndex } from "./stack"
+
+export function MultiFileDiff(props: {
+  files: FileDiffMetadata[]
+  layout: "unified" | "split"
+  wrap: boolean
+  selected: number
+  navigation: number
+  select(index: number): void
+}) {
+  const ctx = usePlugin()
+  let container!: HTMLDivElement
+  const viewer = new CodeView()
+  const items = createDiffStack()
+  const initialFile = props.files[props.selected]?.name
+  onMount(() => {
+    viewer.setup(container)
+    const unsubscribe = viewer.subscribeToScroll((scrollTop) => {
+      const files = props.files
+      const index = stackFileIndex(files.length, (index) => viewer.getTopForItem(files[index].name) ?? Infinity, scrollTop)
+      if (index >= 0) props.select(index)
+    })
+    onCleanup(unsubscribe)
+  })
+  createEffect(() => {
+    viewer.setOptions({
+      diffStyle: props.layout,
+      theme: { light: "jello-jj-light", dark: "jello-jj-dark" },
+      themeType: ctx.appearance.mode(),
+      overflow: props.wrap ? "wrap" : "scroll",
+      diffIndicators: "bars",
+      lineDiffType: "word-alt",
+      hunkSeparators: "line-info-basic",
+      stickyHeaders: true,
+      itemMetrics: { lineHeight: 23, hunkSeparatorHeight: 24, spacing: 0 },
+      layout: { paddingTop: 0, paddingBottom: 16, gap: 12 },
+      unsafeCSS: diffThemeCSS(ctx.appearance.mode() === "dark"),
+      renderHeaderMetadata: (file) => {
+        if (!("hunks" in file)) return
+        if (!file.hunks.length) return "No text hunks (binary, rename, empty file, or mode-only change)"
+        return `+${file.hunks.reduce((sum, hunk) => sum + hunk.additionLines, 0)} −${file.hunks.reduce((sum, hunk) => sum + hunk.deletionLines, 0)}`
+      },
+    })
+  })
+  createEffect(() => viewer.setItems(items(props.files)))
+  // Scroll-driven selection only highlights the tree. Explicit file navigation
+  // increments this counter, so scrolling never jumps back to a file header.
+  createEffect(on(() => props.navigation, (_request, previous) => {
+    const id = previous === undefined ? initialFile : props.files[props.selected]?.name
+    if (id) viewer.scrollTo({ type: "item", id, align: "start", behavior: "instant" })
+  }))
+  onCleanup(() => viewer.cleanUp())
+  return <div ref={container} class="jello-jj-diff-content jello-jj-diff-multi" aria-label="All changed file diffs"
+    style={{ "--diffs-font-family": ctx.appearance.font("mono") }} />
+}

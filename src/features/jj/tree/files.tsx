@@ -3,19 +3,19 @@ import { usePlugin, type MountedSession } from "@opencode/plugin/gui"
 import { Status } from "../rpc"
 import { errorMessage } from "../errors"
 import type { ChangedFile } from "../changed-files"
-import { diffTabID } from "../diff/tab"
+import { openRevisionDiff } from "../diff/navigation"
 
-export function RevisionFiles(props: { session: MountedSession; commitID: string }) {
+export function RevisionFiles(props: { session: MountedSession; commitID: string; changeID: string; divergent: boolean }) {
   // The boundary must mount before the resource is created, otherwise its first
   // read suspends the entire tree panel when an inline file list is expanded.
   return <Suspense fallback={<div class="jello-jj-tree-files">
     <div class="jello-jj-tree-files-state" role="status">Loading files…</div>
   </div>}>
-    <RevisionFileContents session={props.session} commitID={props.commitID} />
+    <RevisionFileContents session={props.session} commitID={props.commitID} changeID={props.changeID} divergent={props.divergent} />
   </Suspense>
 }
 
-function RevisionFileContents(props: { session: MountedSession; commitID: string }) {
+function RevisionFileContents(props: { session: MountedSession; commitID: string; changeID: string; divergent: boolean }) {
   const ctx = usePlugin()
   const ui = ctx.ui
   const [files, { refetch }] = createResource(
@@ -35,7 +35,8 @@ function RevisionFileContents(props: { session: MountedSession; commitID: string
         <Show when={files.latest?.files.length} fallback={<div class="jello-jj-tree-files-state">No file changes</div>}>
           <ul><For each={files.latest?.files}>{(file) => <li><button type="button" class="jello-jj-tree-file-link"
             title={`Open diff · ${file.path}`} aria-label={`Open diff for ${file.path}`}
-            onClick={() => ctx.layout.open(`${ctx.id}:${diffTabID({ directory: props.session.directory, commitID: props.commitID, file: file.path })}`, props.session, { tab: "select" })}>
+            onClick={() => openRevisionDiff(ctx, props.session, { directory: props.session.directory, commitID: props.commitID,
+              changeID: props.changeID, divergent: props.divergent, file: file.path })}>
             <span class="jello-jj-tree-file-status" data-kind={kind(file)}>{kind(file)}</span>
             <span aria-hidden="true"><ui.Icon name="file-document" size="small" /></span>
             <span class="jello-jj-tree-file-path">{file.path}</span>

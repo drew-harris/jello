@@ -67,9 +67,12 @@ open Describe. Selecting another change collapses other
 expanded lists. These shortcuts do not run in text fields, dialogs, or menus;
 immutable changes cannot be abandoned.
 
-Click a file to open a file-targeted **JJ Diff** tab with that file selected and
-the file tree hidden. Its toolbar can show the file tree again. File-targeted
-tabs retain their commit, directory and file when restored.
+Click a file to select it inside the change's **JJ Diff** tab with the file tree
+hidden. Its toolbar can show the file tree again. Opening the whole change or
+another file reuses the same tab rather than creating duplicates. Normal tabs
+are keyed by repository directory and full JJ change ID, so snapshots and rewrites
+do not change their identity. Divergent versions use separate exact-commit tabs.
+Older saved commit/file tab IDs remain readable and are reused when identifiable.
 
 A compact, read-only bottom toolbar shows cards for the current revision, parents,
 and grandparents:
@@ -82,11 +85,12 @@ highlighted. Parent details hide on narrow windows. It refreshes
 every 10 seconds while the window is visible, and on focus. Open the
 tree panel with `/tree`; hover over the status to see the raw output or error.
 
-Click **Parent** or **Earlier** to open a **JJ Diff** tab for that exact commit.
+Click **Parent** or **Earlier** to open a **JJ Diff** tab for that change.
 The viewer uses [Pierre Diffs](https://diffs.com/) with syntax highlighting,
 unified/split layouts, line wrapping, and a searchable changed-file list. Tabs
-remain pinned to their original directory, and historical revisions stay pinned
-to their commit. A diff of the current working copy shows **@ working copy** and
+remain pinned to their original directory and stable change ID (or exact commit
+for divergent versions). Historical tabs resolve the latest version when reopened
+or refreshed. A diff of the current working copy shows **@ working copy** and
 refreshes about every 3 seconds while visible, when its tab is selected, and on window
 focus. It snapshots file edits and follows the same change across rewritten
 commit hashes; switching to another working-copy change stops live updates rather
@@ -96,6 +100,20 @@ Polling waits for each request to finish, slows down for slow repositories and
 errors, and coalesces focus events. Unchanged revisions skip diff generation,
 patch transfer, parsing, and rerendering. Background refreshes never replace the
 view with a loading screen; the renderer updates in place.
+With focus inside JJ Diff, **Ctrl+D / Ctrl+U** smoothly scroll down/up by half
+the diff viewport; **j / k** scroll down/up by two lines.
+Holding either pair scrolls continuously using a single frame-driven animation,
+without waiting for OS key repeat or restarting smooth scrolling on every tick.
+Click the diff or Tab into the panel to focus it. Search fields and dialogs retain their normal keys,
+and reduced-motion preferences disable the scrolling animation.
+
+The toolbar's **Multi-file mode** toggle stacks all changed files in one scroll
+view using Pierre Diffs' native virtualized `CodeView`, with sticky file headers.
+Only visible hunks are rendered, so large changes don't mount every diff at once.
+The file tree and previous/next actions jump to a file in the stack; scrolling
+updates the selected file. Split/unified layouts, wrapping, Vim scrolling, and
+live working-copy refresh work in both modes. Switching modes uses the already
+loaded patch and does not issue extra JJ commands.
 Tabs can be reopened after closing. Binary and metadata-only changes show a summary
 rather than text hunks.
 

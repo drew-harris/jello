@@ -8,7 +8,7 @@ import { promisify } from "node:util"
 import { parsePatchFiles } from "@pierre/diffs"
 import { commit } from "../commit"
 import { readRevisionDiff } from "./server"
-import { diffFileIndex, diffTabID, diffTabTitle, parseDiffTabID } from "./tab"
+import { diffFileIndex, diffTabID, diffTabTitle, parseDiffTabID, reusableDiffTab } from "./tab"
 
 const execute = promisify(execFile)
 
@@ -26,16 +26,41 @@ test("diff tabs preserve the exact revision and directory across restores", () =
   }
 })
 
-test("file-targeted diff tabs preserve paths and stay distinct from full revision tabs", () => {
+test("file navigation reuses a revision tab while legacy file-targeted IDs still restore", () => {
   const target = { commitID: "b".repeat(40), directory: "/repo/space ü#%", file: 'src/a "quoted" file\nname.ts' }
   const id = diffTabID(target)
-  assert.deepEqual(parseDiffTabID(id), target)
-  assert.notEqual(id, diffTabID({ directory: target.directory, commitID: target.commitID }))
-  assert.notEqual(id, diffTabID({ ...target, file: "src/other.ts" }))
+  assert.deepEqual(parseDiffTabID(id), { directory: target.directory, commitID: target.commitID })
+  assert.equal(id, diffTabID({ directory: target.directory, commitID: target.commitID }))
+  assert.equal(id, diffTabID({ ...target, file: "src/other.ts" }))
+  assert.deepEqual(parseDiffTabID(`${id}/file/${encodeURIComponent(target.file)}`), target)
   const base = diffTabID({ directory: target.directory, commitID: target.commitID })
   for (const suffix of ["/file/", "/file/%zz", "/file/x/extra", "/unknown/x"]) {
     assert.equal(parseDiffTabID(base + suffix), undefined)
   }
+})
+
+test("normal diff identities survive commit rewrites and file navigation, but isolate divergent versions", () => {
+  const target = { directory: "/repo ü#%", changeID: "k".repeat(32), commitID: "a".repeat(40) }
+  const id = diffTabID(target)
+  assert.deepEqual(parseDiffTabID(id), { directory: target.directory, changeID: target.changeID })
+  assert.equal(diffTabID({ ...target, commitID: "b".repeat(40), file: "other.txt" }), id)
+  assert.notEqual(diffTabID({ ...target, directory: "/other" }), id)
+  assert.notEqual(diffTabID({ ...target, divergent: true }), id)
+  assert.notEqual(diffTabID({ ...target, divergent: true }), diffTabID({ ...target, commitID: "b".repeat(40), divergent: true }))
+  for (const value of ["jj-diff/change/@/dir", `jj-diff/change/${target.changeID}/x/extra`, `jj-diff/change/${target.changeID}/%zz`]) {
+    assert.equal(parseDiffTabID(value), undefined)
+  }
+})
+
+test("opening a change reuses matching saved legacy tabs without conflating divergent versions", () => {
+  const target = { directory: "/repo", changeID: "k".repeat(32), commitID: "a".repeat(40) }
+  const legacy = `jj-diff/${"b".repeat(40)}/${encodeURIComponent(target.directory)}/file/old.txt`
+  const metadata = { [legacy]: { current: true, changeID8: "kkkkkkkk", fullChangeID: target.changeID, divergent: false } }
+  assert.equal(reusableDiffTab([legacy], { ...target, file: "new.txt" }, metadata), legacy)
+  assert.equal(reusableDiffTab([legacy], { ...target, divergent: true }, metadata), diffTabID({ ...target, divergent: true }))
+  assert.equal(reusableDiffTab([legacy], { ...target, directory: "/other" }, metadata), diffTabID({ ...target, directory: "/other" }))
+  const canonical = diffTabID(target)
+  assert.equal(reusableDiffTab([legacy, canonical], target, metadata), canonical)
 })
 
 test("file selection matches exact paths, including deleted and renamed files", () => {
@@ -118,6 +143,10 @@ test("working-copy diffs snapshot edits and follow the same change across rewrit
     const changed = await readRevisionDiff(directory, second.revision.commitID, undefined, second.revision.commitID)
     assert.ok(!changed.unchanged)
     assert.ok(changed.patch.includes("+third edit"))
+    const changeID = changed.revision.fullChangeID!
+    const stable = await readRevisionDiff(directory, changeID)
+    assert.equal(stable.patch, changed.patch)
+    assert.equal(stable.revision.current, true)
     await jj(["new"])
     await writeFile(join(directory, "example.txt"), "different change\n")
     const stopped = await readRevisionDiff(directory, changed.revision.commitID)
@@ -128,7 +157,37 @@ test("working-copy diffs snapshot edits and follow the same change across rewrit
     const stoppedConditional = await readRevisionDiff(directory, changed.revision.commitID, undefined, changed.revision.commitID)
     assert.equal(stoppedConditional.unchanged, true)
     assert.equal(stoppedConditional.revision.current, false)
+    await jj(["describe", "-r", changeID, "-m", "Rewritten historical change"])
+    const rewritten = await readRevisionDiff(directory, changeID, undefined, changed.revision.commitID)
+    assert.equal(rewritten.revision.description, "Rewritten historical change")
+    assert.equal(rewritten.revision.fullChangeID, changeID)
+    assert.notEqual(rewritten.revision.commitID, changed.revision.commitID)
+    assert.equal(rewritten.revision.current, false)
+    assert.equal(rewritten.patch, changed.patch)
   } finally {
     await rm(directory, { recursive: true, force: true })
   }
+})
+
+test("divergent changes require an exact commit rather than guessing a version", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "jello-divergent-diff-"))
+  try {
+    const jj = async (args: string[]) => (await execute("jj", args, { cwd: directory })).stdout
+    await jj(["git", "init", "."])
+    await jj(["config", "set", "--repo", "user.name", "Jello Test"])
+    await jj(["config", "set", "--repo", "user.email", "test@example.com"])
+    await writeFile(join(directory, "example.txt"), "content\n")
+    const sourceID = (await jj(["log", "--no-graph", "-r", "@", "-T", "commit_id"])).trim()
+    const changeID = (await jj(["log", "--no-graph", "-r", "@", "-T", "change_id"])).trim()
+    const operation = (await jj(["op", "log", "--no-graph", "--limit", "1", "-T", "id"])).trim()
+    await jj(["describe", "-m", "First version"])
+    const firstID = (await jj(["log", "--no-graph", "-r", "@", "-T", "commit_id"])).trim()
+    await jj(["--at-op", operation, "describe", "-r", sourceID, "-m", "Second version"])
+    await jj(["status"])
+    await assert.rejects(readRevisionDiff(directory, changeID), /divergent/)
+    const pinned = await readRevisionDiff(directory, firstID)
+    assert.equal(pinned.revision.commitID, firstID)
+    assert.equal(pinned.revision.description, "First version")
+    assert.equal(pinned.revision.divergent, true)
+  } finally { await rm(directory, { recursive: true, force: true }) }
 })

@@ -4,7 +4,7 @@ import { Status } from "./rpc"
 import type { definition } from "../../gui/definition"
 import { summarizeStatus } from "./status-summary"
 import type { Overview, Revision } from "./overview"
-import { diffTabID } from "./diff/tab"
+import { openRevisionDiff } from "./diff/navigation"
 import { errorMessage } from "./errors"
 
 function RevisionLabel(props: { revision: Revision; open(): void }) {
@@ -107,7 +107,7 @@ export function StatusBar(props: { readonly revision: number }) {
                   if (!session) return
                   const directory = current()?.directory
                   if (!directory) return
-                  ctx.layout.open(`${ctx.id}:${diffTabID({ directory, commitID: revision.commitID })}`, session, { tab: "select" })
+                  openRevisionDiff(ctx, session, { directory, commitID: revision.commitID, changeID: revision.fullChangeID, divergent: revision.divergent })
                 }} />}
               </For>
             </>}

@@ -3,7 +3,7 @@ import { createStore, reconcile } from "solid-js/store"
 import { usePlugin, type MountedSession } from "@opencode/plugin/gui"
 import { Status } from "../rpc"
 import { errorMessage } from "../errors"
-import { diffTabID } from "../diff/tab"
+import { openRevisionDiff } from "../diff/navigation"
 import { revisionAge } from "../diff/time"
 import { edgePath, graphRowID, laneX, layoutHistory, rowOffsets, ROW_HEIGHT } from "./layout"
 import { changeIDLabel, type TreeCommit, type TreeHistory } from "./model"
@@ -169,7 +169,7 @@ export function TreeView(props: { session: MountedSession; revision: number; foc
   const openDiff = () => {
     const commit = selected()
     if (!commit || root(commit.commitID)) return
-    ctx.layout.open(`${ctx.id}:${diffTabID({ directory: props.session.directory, commitID: commit.commitID })}`, props.session, { tab: "select" })
+    openRevisionDiff(ctx, props.session, { directory: props.session.directory, commitID: commit.commitID, changeID: commit.changeID, divergent: commit.divergent })
   }
   const closeMenu = (restoreFocus = false) => {
     const trigger = contextMenu()?.trigger
@@ -444,7 +444,7 @@ export function TreeView(props: { session: MountedSession; revision: number; foc
                   </span>
                 </button>
                 <Show when={expanded().has(row.commit.changeID)}>
-                  <RevisionFiles session={props.session} commitID={row.commit.commitID} />
+                  <RevisionFiles session={props.session} commitID={row.commit.commitID} changeID={row.commit.changeID} divergent={row.commit.divergent} />
                 </Show>
               </li>}</For>
             </ol>

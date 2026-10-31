@@ -20,9 +20,11 @@ const identityTemplate = [
 ].join(" ++ ")
 
 export async function readRevisionDiff(directory: string, commitID: string, signal?: AbortSignal, knownCommitID?: string): Promise<RevisionDiff> {
-  // Only accept an exact commit hash, never arbitrary revsets or options.
-  if (!/^[a-f0-9]{40,64}$/.test(commitID)) throw new Error("Invalid commit ID")
-  if (knownCommitID !== undefined && !/^[a-f0-9]{40,64}$/.test(knownCommitID)) throw new Error("Invalid known commit ID")
+  // Normal tabs follow a full change ID; divergent tabs pin an exact commit.
+  // Never accept arbitrary revsets, abbreviations, or options.
+  const byChange = /^(?:[k-z]{32}|[k-z]{64})$/.test(commitID)
+  if (!byChange && !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(commitID)) throw new Error("Invalid commit ID or change ID")
+  if (knownCommitID !== undefined && !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(knownCommitID)) throw new Error("Invalid known commit ID")
   const options = { cwd: directory, signal, timeout: 30_000, maxBuffer: 16 * 1024 * 1024 }
   try {
     // A working-copy snapshot rewrites its commit hash. Compare full change IDs
@@ -32,13 +34,15 @@ export async function readRevisionDiff(directory: string, commitID: string, sign
     const commits = identities.stdout.split("\n").filter(Boolean).map((line) => JSON.parse(line) as {
       commitID: string; changeID: string; current: boolean; divergent: boolean
     })
-    const original = commits.find((commit) => commit.commitID === commitID)
+    const matches = commits.filter((commit) => byChange ? commit.changeID === commitID : commit.commitID === commitID)
+    if (matches.length !== 1) throw new Error("Change not found or divergent. Reopen a specific version from JJ Tree.")
+    const original = matches[0]
     const current = commits.find((commit) => commit.current)
     const live = !!original && original.changeID === current?.changeID && !original.divergent && !current.divergent
     // Snapshot only a live working copy, then pin both metadata and patch to
     // the resulting exact commit. Historical tabs never snapshot the checkout.
     const metadata = await execute("jj", ["log", ...(!live ? ["--ignore-working-copy"] : []), "--no-graph", "--color=never", "--no-pager",
-      "-r", live ? "@" : commitID, "-T", revisionTemplate], options)
+      "-r", live ? "@" : original.commitID, "-T", revisionTemplate], options)
     const revision = parseRevisions(metadata.stdout)[0]
     if (!revision) throw new Error("Revision not found")
     // The client already holds the patch for this immutable hash. Avoid the

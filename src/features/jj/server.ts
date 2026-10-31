@@ -65,8 +65,9 @@ export async function setupJJ(ctx: Plugin.Context) {
       return readChangedFiles(directory, context.signal)
     },
     diff: async (input, context) => {
-      const { directory, commitID, knownCommitID } = input as { directory: string; commitID: string; knownCommitID?: string }
-      return readRevisionDiff(directory, commitID, context.signal, knownCommitID)
+      const { directory, commitID, changeID, knownCommitID } = input as { directory: string; commitID?: string; changeID?: string; knownCommitID?: string }
+      if (commitID && changeID) throw new Error("Supply a commit ID or change ID, not both.")
+      return readRevisionDiff(directory, changeID ?? commitID ?? "", context.signal, knownCommitID)
     },
     commit: async (input, context) => {
       const { directory, message } = input as { directory: string; message: string }
