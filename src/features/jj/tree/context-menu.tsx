@@ -13,6 +13,8 @@ export function ChangeContextMenu(props: {
   describe(): void
   edit(): void
   setBookmark(): void
+  pushDisabled: boolean
+  push(): void
   squashDisabled: boolean
   squash(): void
 }) {
@@ -80,6 +82,10 @@ export function ChangeContextMenu(props: {
       <button type="button" role="menuitem" disabled={props.squashDisabled}
         title="Squash this change into a parent (Shift+S)" onClick={props.squash}>
         <span aria-hidden="true"><ui.Icon name="arrow-down-to-line" size="small" /></span><span class="jello-jj-tree-menu-label">Squash below</span>
+      </button>
+      <button type="button" role="menuitem" disabled={props.pushDisabled}
+        title="Push this change's bookmarks to Git, tracking them if needed (set a bookmark first)" onClick={props.push}>
+        <span aria-hidden="true"><ui.Icon name="cloud-upload" size="small" /></span><span class="jello-jj-tree-menu-label">Git push</span>
       </button>
       <button type="button" role="menuitem" disabled={props.disabled} class="is-danger"
         title={props.disabled ? "Immutable changes cannot be abandoned" : "Run jj abandon on this change"}

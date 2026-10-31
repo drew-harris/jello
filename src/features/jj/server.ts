@@ -11,9 +11,15 @@ import { newChange } from "./tree/new.ts"
 import { listBookmarks, setBookmark } from "./tree/bookmarks.ts"
 import { editChange } from "./tree/edit.ts"
 import { readSquashDetails, squashBelow } from "./tree/squash.ts"
+import { pushChange } from "./tree/push.ts"
 
 export async function setupJJ(ctx: Plugin.Context) {
   await ctx.rpc.register(Status, {
+    gitPush: async (input, context) => {
+      const { directory, commitID } = input as { directory: string; commitID: string }
+      await pushChange(directory, commitID, context.signal)
+      return { pushed: true }
+    },
     squashDetails: async (input, context) => {
       const { directory, commitID } = input as { directory: string; commitID: string }
       return readSquashDetails(directory, commitID, context.signal)

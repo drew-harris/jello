@@ -59,6 +59,7 @@ export function TreeView(props: { session: MountedSession; revision: number; foc
   const [creating, setCreating] = createSignal(false)
   const [editing, setEditing] = createSignal(false)
   const [squashing, setSquashing] = createSignal(false)
+  const [pushing, setPushing] = createSignal(false)
   const expansionState = () => ctx.stores.jjTreeExpanded(props.session)
   const expanded = createMemo(() => {
     const value = expansionState().value
@@ -71,7 +72,7 @@ export function TreeView(props: { session: MountedSession; revision: number; foc
     else next.add(changeID)
     expansionState().set({ directory: props.session.directory, changes: Array.from(next) })
   }
-  const mutating = () => abandoning() || creating() || editing() || squashing()
+  const mutating = () => abandoning() || creating() || editing() || squashing() || pushing()
   const [contextMenu, setContextMenu] = createSignal<{ x: number; y: number; commit: TreeCommit; trigger: HTMLButtonElement }>()
   const buttons = new Map<string, HTMLButtonElement>()
   const [history, { refetch }] = createResource(
@@ -248,6 +249,26 @@ export function TreeView(props: { session: MountedSession; revision: number; foc
         await client.rpc(Status).setBookmark({ directory, commitID: target.commitID, name })
         props.onChanged()
       }} />)
+  }
+
+  const pushChange = async (target: TreeCommit) => {
+    if (mutating() || root(target.commitID) || !target.bookmarks.length) return
+    const directory = props.session.directory
+    const client = props.session.server.client
+    const commitID = target.commitID
+    setPushing(true)
+    closeMenu(true)
+    const progress = ctx.toast.show({ variant: "loading", title: "Pushing bookmarks to Git…", persistent: true })
+    try {
+      await client.rpc(Status).gitPush({ directory, commitID })
+      props.onChanged()
+      ctx.toast.show({ variant: "success", title: "Bookmarks pushed" })
+    } catch (error) {
+      ctx.toast.show({ variant: "error", title: "Could not push bookmarks", description: errorMessage(error) })
+    } finally {
+      progress.dismiss()
+      setPushing(false)
+    }
   }
 
   const squashDisabled = (target: TreeCommit) => target.immutable || !target.parents.length || mutating()
@@ -469,6 +490,8 @@ export function TreeView(props: { session: MountedSession; revision: number; foc
       disabled={menu.commit.immutable || root(menu.commit.commitID) || mutating()}
       newDisabled={mutating()} newChange={() => void createChange(menu.commit.commitID)}
       setBookmark={() => bookmarkChange(menu.commit)}
+      pushDisabled={mutating() || root(menu.commit.commitID) || !menu.commit.bookmarks.length}
+      push={() => void pushChange(menu.commit)}
       edit={() => void editChange(menu.commit)}
       squashDisabled={squashDisabled(menu.commit)} squash={() => squashChange(menu.commit)}
       close={closeMenu} abandon={() => void abandonChange()} describe={() => describeChange(menu.commit)} />}</Show>
