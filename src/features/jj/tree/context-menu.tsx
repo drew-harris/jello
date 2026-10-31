@@ -11,6 +11,7 @@ export function ChangeContextMenu(props: {
   describe(): void
 }) {
   const ctx = usePlugin()
+  const ui = ctx.ui
   let menu!: HTMLDivElement
   let item!: HTMLButtonElement
   let abandonItem!: HTMLButtonElement
@@ -59,10 +60,10 @@ export function ChangeContextMenu(props: {
       }}>
       <button ref={item} type="button" role="menuitem" disabled={props.disabled}
         title={props.disabled ? "Immutable changes cannot be described" : "Edit the description of this change"}
-        onClick={props.describe}>Describe</button>
+        onClick={props.describe}><span aria-hidden="true"><ui.Icon name="edit" size="small" /></span><span class="jello-jj-tree-menu-label">Describe</span></button>
       <button ref={abandonItem} type="button" role="menuitem" disabled={props.disabled} class="is-danger"
         title={props.disabled ? "Immutable changes cannot be abandoned" : "Run jj abandon on this change"}
-        onClick={props.abandon}>Abandon</button>
+        onClick={props.abandon}><span aria-hidden="true"><ui.Icon name="circle-ban-sign" size="small" /></span><span class="jello-jj-tree-menu-label">Abandon</span></button>
     </div>
   </Portal>
 }

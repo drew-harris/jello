@@ -109,12 +109,44 @@
 .jello-jj-tree-empty { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; margin: auto 0; padding: 24px; color: var(--tree-muted); line-height: 1.6; }
 .jello-jj-tree-empty p { margin: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
 
-.jello-jj-tree-context-menu { position: fixed; z-index: 1000; min-width: 160px; padding: 4px; border: 1px solid #ddd; border-radius: 7px; background: #fff; box-shadow: 0 6px 24px #0003; outline: none; }
-.jello-jj-tree-context-menu[data-mode="dark"] { background: #222; border-color: #3a3a3a; }
-.jello-jj-tree-context-menu button { display: block; width: 100%; padding: 6px 10px; border: 0; border-radius: 4px; background: transparent; color: #242424; font: inherit; font-size: 12px; text-align: left; cursor: pointer; outline: none; }
+.jello-jj-tree-context-menu {
+  --menu-hover: #00000008;
+  position: fixed;
+  z-index: 1000;
+  min-width: 148px;
+  padding: 4px;
+  border: 1px solid #00000018;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 8px 24px #0002, 0 2px 6px #0001;
+  outline: none;
+}
+.jello-jj-tree-context-menu[data-mode="dark"] { --menu-hover: #ffffff0d; background: #242424; border-color: #ffffff18; box-shadow: 0 8px 24px #0005, 0 2px 6px #0003; }
+.jello-jj-tree-context-menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 30px;
+  padding: 6px 9px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #333;
+  font: inherit;
+  font-size: 12px;
+  line-height: 18px;
+  text-align: left;
+  cursor: pointer;
+  outline: none;
+}
+.jello-jj-tree-context-menu button > span[aria-hidden] { display: flex; align-items: center; justify-content: center; width: 16px; height: 16px; flex-shrink: 0; opacity: .75; }
+.jello-jj-tree-menu-label { margin: 0; }
 .jello-jj-tree-context-menu[data-mode="dark"] button { color: #ddd; }
 .jello-jj-tree-context-menu button.is-danger { color: #bd3434; }
 .jello-jj-tree-context-menu[data-mode="dark"] button.is-danger { color: #f08080; }
-.jello-jj-tree-context-menu button:hover:not(:disabled), .jello-jj-tree-context-menu button:focus-visible { background: #bd343418; }
+.jello-jj-tree-context-menu button:hover:not(:disabled), .jello-jj-tree-context-menu button:focus-visible { background: var(--menu-hover); }
+.jello-jj-tree-context-menu button.is-danger:hover:not(:disabled), .jello-jj-tree-context-menu button.is-danger:focus-visible { background: #bd343414; }
 .jello-jj-tree-context-menu button:disabled { opacity: .4; cursor: default; }
 .jello-jj-tree-description-input { box-sizing: border-box; width: 100%; padding: 8px 10px; border: 1px solid color-mix(in srgb, currentColor 20%, transparent); border-radius: 6px; background: transparent; color: inherit; font: inherit; }
