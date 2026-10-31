@@ -130,12 +130,22 @@ export function TreeView(props: { session: MountedSession; revision: number; foc
     button?.scrollIntoView({ block: "nearest" })
   }
   const jump = () => choose(commits().findIndex((commit) => commit.current), true)
-  // Runs after mounting/loading too, and repeats even if the tab was already open.
+  // Opening the host pane and mounting its rows finish after this effect runs.
+  // Wait for the host's opening frame before focusing, including on first load.
   createEffect(on(() => props.focusRequest, (request) => {
     if (!request) return
-    const target = selected()
-    if (target) choose(commits().findIndex((commit) => commit.commitID === target.commitID), true)
-    else panel.focus({ preventScroll: true })
+    let frame = requestAnimationFrame(() => {
+      frame = requestAnimationFrame(() => {
+        if (!panel.isConnected || !panel.getClientRects().length || ctx.dialogs.active()) return
+        const target = selected()
+        const button = target && buttons.get(graphRowID(target))
+        if (button?.isConnected) {
+          button.focus({ preventScroll: true })
+          button.scrollIntoView({ block: "nearest" })
+        } else panel.focus({ preventScroll: true })
+      })
+    })
+    onCleanup(() => cancelAnimationFrame(frame))
   }))
   const openDiff = () => {
     const commit = selected()
