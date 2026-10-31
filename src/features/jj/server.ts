@@ -11,9 +11,13 @@ import { newChange } from "./tree/new.ts"
 
 export async function setupJJ(ctx: Plugin.Context) {
   await ctx.rpc.register(Status, {
+    revisionFiles: async (input, context) => {
+      const { directory, commitID } = input as { directory: string; commitID: string }
+      return readChangedFiles(directory, context.signal, commitID)
+    },
     newChange: async (input, context) => {
-      const { directory } = input as { directory: string }
-      await newChange(directory, context.signal)
+      const { directory, commitID } = input as { directory: string; commitID?: string }
+      await newChange(directory, context.signal, commitID)
       return { created: true }
     },
     describe: async (input, context) => {

@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert"
 import { test } from "node:test"
-import { edgePath, laneX, layoutHistory, ROW_HEIGHT } from "./layout"
+import { edgePath, laneX, layoutHistory, rowOffsets, ROW_HEIGHT } from "./layout"
 import { changeIDLabel, parseHistory, type TreeCommit } from "./model"
 
 const commit = (commitID: string, parents: string[] = [], extra: Partial<TreeCommit> = {}): TreeCommit => ({
@@ -67,6 +67,16 @@ test("SVG paths align exactly with row centers", () => {
   const center = ROW_HEIGHT / 2
   assert.equal(edgePath(0, 0, center), `M ${laneX(0)} ${center} V ${center + ROW_HEIGHT}`)
   assert.ok(edgePath(0, 1, center).endsWith(`${laneX(1)} ${center + ROW_HEIGHT}`))
+})
+
+test("expanded rows move graph nodes and edge endpoints by their measured height", () => {
+  const commits = [commit("a", ["b"]), commit("b", ["c"]), commit("c")]
+  const offsets = rowOffsets(commits, { a: 180, b: 90 })
+  assert.deepEqual(offsets, [0, 180, 270, 270 + ROW_HEIGHT])
+  const center = ROW_HEIGHT / 2
+  assert.equal(edgePath(0, 0, center, 180), `M ${laneX(0)} ${center} V ${180 + center}`)
+  assert.ok(edgePath(0, 1, center, 180).endsWith(`${laneX(1)} ${180 + center}`))
+  assert.deepEqual(rowOffsets(commits, { a: 0 }), [0, ROW_HEIGHT, ROW_HEIGHT * 2, ROW_HEIGHT * 3])
 })
 
 test("JSON lines preserve multiline descriptions, Unicode, and bookmarks", () => {

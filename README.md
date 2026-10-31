@@ -13,8 +13,8 @@ server's PATH.
 The view respects the repository's default `jj log` revset. Dashed, capped edges
 indicate parents outside the displayed history; they do not infer connections
 through hidden revisions. Load more adds 100 revisions at a time (up to 2,000).
-Select a commit to inspect its description, author and timestamp, copy IDs, or
-open its diff. Use ↑/↓ to navigate, Enter or double-click to open a diff, and **@**
+Each commit row shows its subject, author and age; there is no separate selection
+details pane. Use ↑/↓ to navigate, Enter or double-click to open a diff, and **@**
 to jump to the working copy. Refresh runs every 10 seconds while the window is
 visible, when returning to the app, reopening the panel, and after committing;
 the toolbar also has a manual refresh action. Requests never overlap.
@@ -24,9 +24,14 @@ commit. Immutable changes have the action disabled. JJ rebases descendants onto
 the abandoned commit's parents; abandoning the working copy starts a new empty
 change. The tree and status bar refresh after success, and errors appear as toasts.
 
-⌘-click a change, or choose **Describe** from the same menu, to replace a mutable commit's description
+⌘⇧-click a change, or choose **Describe** from the same menu, to replace a mutable commit's description
 with a single line. The input starts with its current subject; press Enter to save
 or cancel to leave it unchanged. Failures remain visible in the modal.
+
+⌘-click a change to expand or collapse its changed-file list inline, with file
+paths and added/modified/deleted markers. The list reads that exact commit, not
+the current working copy. Use →/← to expand/collapse with the keyboard. Graph
+connections adjust to the expanded rows; long file lists scroll independently.
 
 A compact, read-only bottom toolbar shows cards for the current revision, parents,
 and grandparents:

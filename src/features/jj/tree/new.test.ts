@@ -31,7 +31,20 @@ test("jj new creates an empty working copy on the previous working-copy commit",
     assert.equal(after.commits[1].empty, false)
     const file = await jj(["file", "show", "example.txt"])
     assert.equal(file.stdout, "Keep working-copy contents\n")
+    // The context-menu action must use its explicit parent, not the working copy.
+    await newChange(directory, undefined, before.commits[0].commitID)
+    const branched = await readTree(directory, 20)
+    assert.deepEqual(branched.commits.find((commit) => commit.current)?.parents, [before.commits[0].commitID])
+    // Immutable commits are valid parents; creating a child does not rewrite them.
+    const root = "0".repeat(40)
+    await newChange(directory, undefined, root)
+    const fromRoot = await readTree(directory, 20)
+    assert.deepEqual(fromRoot.commits.find((commit) => commit.current)?.parents, [root])
   } finally {
     await rm(directory, { recursive: true, force: true })
   }
+})
+
+test("jj new rejects revsets and abbreviated IDs when an explicit parent is supplied", async () => {
+  await assert.rejects(newChange("/nonexistent/jello-test", undefined, "all()"), /full commit ID/)
 })

@@ -4,11 +4,12 @@ import { Status } from "../rpc"
 import { errorMessage } from "../errors"
 import { diffTabID } from "../diff/tab"
 import { revisionAge } from "../diff/time"
-import { edgePath, laneX, layoutHistory, ROW_HEIGHT } from "./layout"
+import { edgePath, laneX, layoutHistory, rowOffsets, ROW_HEIGHT } from "./layout"
 import { changeIDLabel, type TreeCommit, type TreeHistory } from "./model"
 import { ChangeContextMenu } from "./context-menu"
 import { DescribeDialog } from "./describe-dialog"
 import type { definition } from "../../../gui/definition"
+import { RevisionFiles } from "./files"
 
 function ChangeID(props: { commit: TreeCommit }) {
   const label = () => changeIDLabel(props.commit)
@@ -25,7 +26,8 @@ export function TreeView(props: { session: MountedSession; revision: number; onC
     const value = state().value
     return value?.directory === props.session.directory ? value : undefined
   }
-  const limit = () => saved()?.limit ?? 100
+  // Selecting a row updates the same store, but must not trigger a history fetch.
+  const limit = createMemo(() => saved()?.limit ?? 100)
   const setLimit = (update: (value: number) => number) => state().set({
     directory: props.session.directory,
     commitID: saved()?.commitID ?? "",
@@ -39,9 +41,16 @@ export function TreeView(props: { session: MountedSession; revision: number; onC
     changeID: commit.changeID,
     limit: limit(),
   })
-  const [notice, setNotice] = createSignal("")
   const [abandoning, setAbandoning] = createSignal(false)
   const [creating, setCreating] = createSignal(false)
+  const [expanded, setExpanded] = createSignal(new Set<string>())
+  const [rowHeights, setRowHeights] = createSignal<Record<string, number>>({})
+  const toggleFiles = (changeID: string) => setExpanded((previous) => {
+    const next = new Set(previous)
+    if (next.has(changeID)) next.delete(changeID)
+    else next.add(changeID)
+    return next
+  })
   const mutating = () => abandoning() || creating()
   const [contextMenu, setContextMenu] = createSignal<{ x: number; y: number; commit: TreeCommit; trigger: HTMLButtonElement }>()
   const buttons = new Map<string, HTMLButtonElement>()
@@ -66,8 +75,17 @@ export function TreeView(props: { session: MountedSession; revision: number; onC
       ?? commits().find((commit) => commit.current) ?? commits()[0]
   }
   const gutter = () => Math.max(42, graph().lanes * 18 + 24)
-  const rowCenter = (index: number) => index * ROW_HEIGHT + ROW_HEIGHT / 2
-  const boundaryY = (index: number) => (index + 1) * ROW_HEIGHT - 5
+  const offsets = createMemo(() => rowOffsets(commits(), rowHeights()))
+  const rowCenter = (index: number) => offsets()[index] + ROW_HEIGHT / 2
+  const boundaryY = (index: number) => offsets()[index] + ROW_HEIGHT - 5
+  const measureRow = (element: HTMLLIElement, commitID: string) => {
+    const observer = new ResizeObserver(([entry]) => {
+      const height = entry.borderBoxSize[0]?.blockSize ?? element.offsetHeight
+      setRowHeights((previous) => (previous[commitID] ?? ROW_HEIGHT) === height ? previous : { ...previous, [commitID]: height })
+    })
+    observer.observe(element)
+    onCleanup(() => observer.disconnect())
+  }
   const root = (id: string) => /^0+$/.test(id)
   const refresh = () => { if (!history.loading && !mutating()) void refetch() }
   const onFocus = () => { if (!document.hidden) refresh() }
@@ -92,10 +110,6 @@ export function TreeView(props: { session: MountedSession; revision: number; onC
     const commit = selected()
     if (!commit || root(commit.commitID)) return
     ctx.layout.open(`${ctx.id}:${diffTabID({ directory: props.session.directory, commitID: commit.commitID })}`, props.session, { tab: "select" })
-  }
-  const copy = async (value: string) => {
-    try { await ctx.system.copy(value); setNotice("Copied to clipboard") }
-    catch (error) { setNotice(errorMessage(error)) }
   }
   const closeMenu = (restoreFocus = false) => {
     const trigger = contextMenu()?.trigger
@@ -133,14 +147,14 @@ export function TreeView(props: { session: MountedSession; revision: number; onC
       }} />)
   }
 
-  const createChange = async () => {
+  const createChange = async (commitID?: string) => {
     if (mutating()) return
     const directory = props.session.directory
     const client = props.session.server.client
     setCreating(true)
     closeMenu()
     try {
-      await client.rpc(Status).newChange({ directory })
+      await client.rpc(Status).newChange({ directory, ...(commitID ? { commitID } : {}) })
       props.onChanged()
       ctx.toast.show({ variant: "success", title: "New change created" })
     } catch (error) {
@@ -175,11 +189,11 @@ export function TreeView(props: { session: MountedSession; revision: number; onC
       <div class="jello-jj-tree-scroll" aria-busy={history.loading}>
         <Show when={commits().length} fallback={<div class="jello-jj-tree-empty">No revisions in the configured log view.</div>}>
           <div class="jello-jj-tree-history" style={{ "--tree-gutter": `${gutter()}px`, "--tree-row-height": `${ROW_HEIGHT}px`, "min-width": `${gutter() + 220}px` }}>
-            <svg class="jello-jj-tree-graph" width={gutter()} height={commits().length * ROW_HEIGHT} aria-hidden="true">
+            <svg class="jello-jj-tree-graph" width={gutter()} height={offsets().at(-1) ?? 0} aria-hidden="true">
               <For each={graph().rows}>{(row, index) => <>
                 <For each={row.edges}>{(edge) => <path class="jello-jj-tree-edge" data-color={edge.color}
                   classList={{ "is-missing": edge.missing }}
-                  d={edge.missing ? `M ${laneX(edge.from)} ${rowCenter(index())} Q ${laneX(edge.to)} ${rowCenter(index()) + 5}, ${laneX(edge.to)} ${boundaryY(index())}` : edgePath(edge.from, edge.to, rowCenter(index()))} />}</For>
+                  d={edge.missing ? `M ${laneX(edge.from)} ${rowCenter(index())} Q ${laneX(edge.to)} ${rowCenter(index()) + 5}, ${laneX(edge.to)} ${boundaryY(index())}` : edgePath(edge.from, edge.to, rowCenter(index()), offsets()[index() + 1] - offsets()[index()])} />}</For>
                 <For each={row.edges.filter((edge) => edge.missing)}>{(edge) =>
                   <path class="jello-jj-tree-edge is-boundary" data-color={row.color}
                     d={`M ${laneX(edge.to) - 3} ${boundaryY(index())} h 6`} />
@@ -195,7 +209,7 @@ export function TreeView(props: { session: MountedSession; revision: number; onC
               </g>}</For>
             </svg>
             <ol class="jello-jj-tree-rows" aria-label="Commits">
-              <For each={graph().rows}>{(row, index) => <li>
+              <For each={graph().rows}>{(row, index) => <li ref={(element) => measureRow(element, row.commit.commitID)}>
                 <button type="button" class="jello-jj-tree-row" ref={(element) => {
                   buttons.set(row.commit.commitID, element)
                   onCleanup(() => buttons.delete(row.commit.commitID))
@@ -203,15 +217,15 @@ export function TreeView(props: { session: MountedSession; revision: number; onC
                   tabIndex={selected()?.commitID === row.commit.commitID ? 0 : -1}
                   aria-pressed={selected()?.commitID === row.commit.commitID}
                   aria-haspopup="menu"
-                  aria-expanded={contextMenu()?.commit.commitID === row.commit.commitID}
+                  aria-expanded={expanded().has(row.commit.changeID)}
                   aria-current={row.commit.current ? "true" : undefined}
                   aria-label={`${row.commit.current ? "Working copy, " : ""}${row.commit.empty && !root(row.commit.commitID) ? "Empty change, " : ""}${row.commit.changeID}, ${root(row.commit.commitID) ? "Root" : row.commit.description.trim() || "No description"}${row.missingParents.length ? ", some ancestry not shown" : ""}`}
                   onClick={(event) => {
                     setSelection({ commitID: row.commit.commitID, changeID: row.commit.changeID })
-                    setNotice("")
                     if (event.metaKey) {
                       event.preventDefault()
-                      describeChange(row.commit)
+                      if (event.shiftKey) describeChange(row.commit)
+                      else toggleFiles(row.commit.changeID)
                     }
                   }}
                   onDblClick={(event) => { if (!event.metaKey) openDiff() }}
@@ -235,6 +249,8 @@ export function TreeView(props: { session: MountedSession; revision: number; onC
                     const target = event.key === "ArrowDown" ? index() + 1 : event.key === "ArrowUp" ? index() - 1 : event.key === "Home" ? 0 : event.key === "End" ? commits().length - 1 : undefined
                     if (target !== undefined) { event.preventDefault(); choose(Math.max(0, Math.min(commits().length - 1, target)), true) }
                     if (event.key === "Enter") { event.preventDefault(); openDiff() }
+                    if (event.key === "ArrowRight" && !expanded().has(row.commit.changeID)) { event.preventDefault(); toggleFiles(row.commit.changeID) }
+                    if (event.key === "ArrowLeft" && expanded().has(row.commit.changeID)) { event.preventDefault(); toggleFiles(row.commit.changeID) }
                   }}>
                   <span class="jello-jj-tree-meta">
                     <ChangeID commit={row.commit} />
@@ -256,6 +272,9 @@ export function TreeView(props: { session: MountedSession; revision: number; onC
                     <Show when={row.missingParents.length}><span class="jello-jj-tree-boundary" title="Parent revisions are outside this log view. Dashed edges end here; no ancestry is inferred.">···</span></Show>
                   </span>
                 </button>
+                <Show when={expanded().has(row.commit.changeID)}>
+                  <RevisionFiles session={props.session} commitID={row.commit.commitID} />
+                </Show>
               </li>}</For>
             </ol>
           </div>
@@ -268,23 +287,11 @@ export function TreeView(props: { session: MountedSession; revision: number; onC
           </Show>
         </footer>
       </div>
-      <Show when={selected()}>{(commit) => <aside class="jello-jj-tree-details" aria-label="Selected revision">
-        <div class="jello-jj-tree-detail-heading"><ChangeID commit={commit()} />
-          <span>{commit().current ? "Working copy" : commit().immutable ? "Immutable" : "Mutable"}</span>
-          <button type="button" disabled={root(commit().commitID)} onClick={openDiff}>Open diff <span aria-hidden="true">↗</span></button>
-        </div>
-        <p class="jello-jj-tree-description">{root(commit().commitID) ? "Root commit" : commit().description.trim() || "No description"}</p>
-        <div class="jello-jj-tree-author">{commit().author || "Unknown author"}<span title={commit().timestamp}>{root(commit().commitID) ? "" : new Date(commit().timestamp).toLocaleString()}</span></div>
-        <div class="jello-jj-tree-detail-actions">
-          <button type="button" onClick={() => void copy(commit().changeID)} title="Copy change ID">Copy change ID</button>
-          <button type="button" onClick={() => void copy(commit().commitID)} title={commit().commitID}>{commit().commitID.slice(0, 12)}</button>
-          <span role="status">{notice()}</span>
-        </div>
-      </aside>}</Show>
     </Show>
     <div class="jello-jj-tree-footnote"><span>{commits().length} revisions</span><span>↑ ↓ navigate · Enter opens diff</span></div>
     <Show keyed when={contextMenu()}>{(menu) => <ChangeContextMenu x={menu.x} y={menu.y}
       disabled={menu.commit.immutable || root(menu.commit.commitID) || mutating()}
+      newDisabled={mutating()} newChange={() => void createChange(menu.commit.commitID)}
       close={closeMenu} abandon={() => void abandonChange()} describe={() => describeChange(menu.commit)} />}</Show>
   </>
 }

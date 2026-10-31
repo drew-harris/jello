@@ -6,6 +6,8 @@ export function ChangeContextMenu(props: {
   x: number
   y: number
   disabled: boolean
+  newDisabled: boolean
+  newChange(): void
   close(restoreFocus?: boolean): void
   abandon(): void
   describe(): void
@@ -13,14 +15,13 @@ export function ChangeContextMenu(props: {
   const ctx = usePlugin()
   const ui = ctx.ui
   let menu!: HTMLDivElement
-  let item!: HTMLButtonElement
-  let abandonItem!: HTMLButtonElement
   onMount(() => {
     const bounds = menu.getBoundingClientRect()
     menu.style.left = `${Math.max(8, Math.min(props.x, window.innerWidth - bounds.width - 8))}px`
     menu.style.top = `${Math.max(8, Math.min(props.y, window.innerHeight - bounds.height - 8))}px`
-    if (props.disabled) menu.focus()
-    else item.focus()
+    const first = menu.querySelector<HTMLButtonElement>("button:not(:disabled)")
+    if (first) first.focus()
+    else menu.focus()
     const outside = (event: Event) => {
       if (event.target instanceof Node && !menu.contains(event.target)) props.close(false)
     }
@@ -51,17 +52,23 @@ export function ChangeContextMenu(props: {
         }
         if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
           event.preventDefault()
-          if (!props.disabled) {
-            if (event.key === "Home") item.focus()
-            else if (event.key === "End") abandonItem.focus()
-            else (document.activeElement === item ? abandonItem : item).focus()
+          const items = Array.from(menu.querySelectorAll<HTMLButtonElement>("button:not(:disabled)"))
+          if (items.length) {
+            const index = items.findIndex((item) => item === document.activeElement)
+            const next = event.key === "Home" ? 0 : event.key === "End" ? items.length - 1
+              : (index + (event.key === "ArrowUp" ? -1 : 1) + items.length) % items.length
+            items[next].focus()
           }
         }
       }}>
-      <button ref={item} type="button" role="menuitem" disabled={props.disabled}
+      <button type="button" role="menuitem" disabled={props.newDisabled}
+        title="Create a new change on top of this commit" onClick={props.newChange}>
+        <span aria-hidden="true"><ui.Icon name="branch-out" size="small" /></span><span class="jello-jj-tree-menu-label">New change</span>
+      </button>
+      <button type="button" role="menuitem" disabled={props.disabled}
         title={props.disabled ? "Immutable changes cannot be described" : "Edit the description of this change"}
         onClick={props.describe}><span aria-hidden="true"><ui.Icon name="edit" size="small" /></span><span class="jello-jj-tree-menu-label">Describe</span></button>
-      <button ref={abandonItem} type="button" role="menuitem" disabled={props.disabled} class="is-danger"
+      <button type="button" role="menuitem" disabled={props.disabled} class="is-danger"
         title={props.disabled ? "Immutable changes cannot be abandoned" : "Run jj abandon on this change"}
         onClick={props.abandon}><span aria-hidden="true"><ui.Icon name="circle-ban-sign" size="small" /></span><span class="jello-jj-tree-menu-label">Abandon</span></button>
     </div>

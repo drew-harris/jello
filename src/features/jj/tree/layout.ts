@@ -64,10 +64,16 @@ export function layoutHistory(commits: TreeCommit[]): { rows: GraphRow[]; lanes:
   return { rows, lanes: width }
 }
 
-export function edgePath(from: number, to: number, y: number): string {
+export function edgePath(from: number, to: number, y: number, height = ROW_HEIGHT): string {
   const x1 = laneX(from)
   const x2 = laneX(to)
   return x1 === x2
-    ? `M ${x1} ${y} V ${y + ROW_HEIGHT}`
-    : `M ${x1} ${y} C ${x1} ${y + ROW_HEIGHT / 2}, ${x2} ${y + ROW_HEIGHT / 2}, ${x2} ${y + ROW_HEIGHT}`
+    ? `M ${x1} ${y} V ${y + height}`
+    : `M ${x1} ${y} C ${x1} ${y + height / 2}, ${x2} ${y + height / 2}, ${x2} ${y + height}`
+}
+
+export function rowOffsets(commits: TreeCommit[], heights: Record<string, number>): number[] {
+  const offsets = [0]
+  for (const commit of commits) offsets.push(offsets.at(-1)! + Math.max(ROW_HEIGHT, heights[commit.commitID] ?? ROW_HEIGHT))
+  return offsets
 }

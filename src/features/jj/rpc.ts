@@ -24,10 +24,25 @@ const revisionSchema = {
 export const Status = Rpc.define({
   id: "jello.jj.status",
   methods: {
+    revisionFiles: {
+      input: {
+        type: "object",
+        properties: { directory: { type: "string" }, commitID: { type: "string", minLength: 40, maxLength: 64 } },
+        required: ["directory", "commitID"], additionalProperties: false,
+      },
+      output: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: { path: { type: "string" }, status: { type: "string" } },
+          required: ["path", "status"], additionalProperties: false,
+        },
+      },
+    },
     newChange: {
       input: {
         type: "object",
-        properties: { directory: { type: "string" } },
+        properties: { directory: { type: "string" }, commitID: { type: "string", minLength: 40, maxLength: 64 } },
         required: ["directory"],
         additionalProperties: false,
       },

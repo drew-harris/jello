@@ -26,7 +26,17 @@ test("reads fresh working-copy additions, modifications, and deletions safely", 
     assert.ok(files.some((file) => file.path === unusualPath && file.status.toLowerCase().startsWith("a")))
     assert.ok(files.some((file) => file.path === "modified.txt" && file.status.toLowerCase().startsWith("m")))
     assert.ok(files.some((file) => file.path === "deleted.txt" && file.status === "removed"))
+    const { stdout } = await execute("jj", ["log", "--no-graph", "-r", "@-", "-T", "commit_id"], { cwd: directory })
+    const historical = await readChangedFiles(directory, undefined, stdout.trim())
+    assert.equal(historical.length, 2)
+    assert.ok(historical.every((file) => file.status === "added"))
+    assert.ok(!historical.some((file) => file.path === unusualPath))
+    assert.deepEqual(await readChangedFiles(directory, undefined, "0".repeat(40)), [])
   } finally {
     await rm(directory, { recursive: true, force: true })
   }
+})
+
+test("revision file reads reject revsets before running JJ", async () => {
+  await assert.rejects(readChangedFiles("/nonexistent/jello-test", undefined, "all()"), /full commit ID/)
 })
