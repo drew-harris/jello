@@ -24,6 +24,10 @@ commit. Immutable changes have the action disabled. JJ rebases descendants onto
 the abandoned commit's parents; abandoning the working copy starts a new empty
 change. The tree and status bar refresh after success, and errors appear as toasts.
 
+**Edit** runs `jj edit` on the clicked mutable change, switching the working copy
+to it. A progress toast stays visible during the operation, then the tree and
+status bar refresh. Immutable changes cannot be edited.
+
 **Set bookmark** opens a searchable bookmark picker. Choose an existing name to
 move it to the clicked commit (including backwards or sideways), or type a new
 name to create it. Use ↑/↓ for suggestions and Enter to save. Bookmark lists are

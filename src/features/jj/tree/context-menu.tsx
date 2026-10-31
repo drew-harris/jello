@@ -11,6 +11,7 @@ export function ChangeContextMenu(props: {
   close(restoreFocus?: boolean): void
   abandon(): void
   describe(): void
+  edit(): void
   setBookmark(): void
 }) {
   const ctx = usePlugin()
@@ -66,6 +67,9 @@ export function ChangeContextMenu(props: {
         title="Create a new change on top of this commit" onClick={props.newChange}>
         <span aria-hidden="true"><ui.Icon name="branch-out" size="small" /></span><span class="jello-jj-tree-menu-label">New change</span>
       </button>
+      <button type="button" role="menuitem" disabled={props.disabled}
+        title={props.disabled ? "Immutable changes cannot be edited" : "Switch the working copy to this change (jj edit)"}
+        onClick={props.edit}><span aria-hidden="true"><ui.Icon name="enter" size="small" /></span><span class="jello-jj-tree-menu-label">Edit</span></button>
       <button type="button" role="menuitem" disabled={props.disabled}
         title={props.disabled ? "Immutable changes cannot be described" : "Edit the description of this change"}
         onClick={props.describe}><span aria-hidden="true"><ui.Icon name="edit" size="small" /></span><span class="jello-jj-tree-menu-label">Describe</span></button>
