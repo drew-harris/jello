@@ -3,7 +3,7 @@ import { batch, createEffect, createMemo, createSignal, ErrorBoundary, For, on, 
 import { usePlugin, type MountedSession } from "@opencode/plugin/gui"
 import { Status } from "../rpc"
 import type { RevisionDiff } from "./server"
-import { diffFileIndex, parseDiffTabID } from "./tab"
+import { diffFileIndex, parseDiffTabID, type DiffTabRevision } from "./tab"
 import { errorMessage } from "../errors"
 import { buildFileTree, type FileTreeNode } from "./tree"
 import { DiffIcon, FileIcon } from "./icons"
@@ -79,7 +79,7 @@ function TreeEntry(props: {
   </li>
 }
 
-export function DiffView(props: { session: MountedSession; tabID: string; focusRevision?: number }) {
+export function DiffView(props: { session: MountedSession; tabID: string; focusRevision?: number; onRevision?(id: string, revision: DiffTabRevision): void }) {
   const ctx = usePlugin()
   const ui = ctx.ui
   // Boundaries must precede resource/memo creation to avoid suspending the window.
@@ -88,13 +88,13 @@ export function DiffView(props: { session: MountedSession; tabID: string; focusR
     <p>{errorMessage(error)}</p><ui.Button onClick={reset}>Retry</ui.Button>
   </div>}>
     <Suspense fallback={<div class="jello-jj-diff-empty" role="status">Loading revision diff…</div>}>
-      <DiffContents session={props.session} tabID={props.tabID} focusRevision={props.focusRevision} />
+      <DiffContents session={props.session} tabID={props.tabID} focusRevision={props.focusRevision} onRevision={props.onRevision} />
     </Suspense>
     </ErrorBoundary>
   </section>
 }
 
-function DiffContents(props: { session: MountedSession; tabID: string; focusRevision?: number }) {
+function DiffContents(props: { session: MountedSession; tabID: string; focusRevision?: number; onRevision?(id: string, revision: DiffTabRevision): void }) {
   const ctx = usePlugin()
   const [layout, setLayout] = createSignal<"unified" | "split">("unified")
   const [wrap, setWrap] = createSignal(true)
@@ -160,6 +160,7 @@ function DiffContents(props: { session: MountedSession; tabID: string; focusRevi
       batch(() => {
         setSelected(index >= 0 ? index : diffFileIndex(files, target.file))
         setResult({ id, data, files, refreshError: "" })
+        props.onRevision?.(id, data.revision)
       })
       failures = 0
     } catch (error) {

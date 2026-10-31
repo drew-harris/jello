@@ -4,6 +4,15 @@ export interface DiffTarget {
   file?: string
 }
 
+export interface DiffTabRevision {
+  current: boolean
+  changeID8: string
+}
+
+export function diffTabTitle(revision?: DiffTabRevision): string {
+  return revision?.current ? "Working copy" : revision ? `JJ Diff · ${revision.changeID8}` : "JJ Diff"
+}
+
 const prefix = "jj-diff/"
 
 export function diffTabID(target: DiffTarget): string {

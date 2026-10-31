@@ -8,9 +8,15 @@ import { promisify } from "node:util"
 import { parsePatchFiles } from "@pierre/diffs"
 import { commit } from "../commit"
 import { readRevisionDiff } from "./server"
-import { diffFileIndex, diffTabID, parseDiffTabID } from "./tab"
+import { diffFileIndex, diffTabID, diffTabTitle, parseDiffTabID } from "./tab"
 
 const execute = promisify(execFile)
+
+test("diff tab titles use Working copy or JJ Diff with a dot and change ID", () => {
+  assert.equal(diffTabTitle(), "JJ Diff")
+  assert.equal(diffTabTitle({ current: true, changeID8: "abcdefgh" }), "Working copy")
+  assert.equal(diffTabTitle({ current: false, changeID8: "abcdefgh" }), "JJ Diff · abcdefgh")
+})
 
 test("diff tabs preserve the exact revision and directory across restores", () => {
   const target = { commitID: "a".repeat(40), directory: "/project with spaces/ü#%/checkout" }
