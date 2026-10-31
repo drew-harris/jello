@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process"
 import { promisify } from "node:util"
 import { parseRevisions, revisionTemplate, type Overview } from "./overview.ts"
+import { countLineChanges } from "./line-changes.ts"
 
 const execute = promisify(execFile)
 
@@ -11,7 +12,10 @@ export async function readOverview(directory: string, signal?: AbortSignal): Pro
     "log", "--ignore-working-copy", "--no-graph", "--color=never", "--no-pager",
     "-r", "ancestors(@, 3)", "-T", revisionTemplate,
   ], { cwd: directory, signal, timeout: 15_000, maxBuffer: 4 * 1024 * 1024 })
-  return { text, revisions: parseRevisions(stdout) }
+  const diff = await execute("jj", [
+    "diff", "--git", "--context=3", "--ignore-working-copy", "--color=never", "--no-pager",
+  ], { cwd: directory, signal, timeout: 15_000, maxBuffer: 32 * 1024 * 1024 })
+  return { text, revisions: parseRevisions(stdout), lines: countLineChanges(diff.stdout) }
 }
 
 export async function readStatus(directory: string, signal?: AbortSignal): Promise<{ text: string }> {

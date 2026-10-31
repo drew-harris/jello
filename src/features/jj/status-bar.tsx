@@ -7,15 +7,20 @@ import type { Overview, Revision } from "./overview"
 
 function RevisionLabel(props: { revision: Revision }) {
   return (
-    <span class="jello-jj-revision" classList={{ "jello-jj-parent": !props.revision.current }}>
-      <span class="jello-jj-revision-label">{["@", "@−", "@−−"][props.revision.depth]}</span>
+    <span class="jello-jj-revision" classList={{ "jello-jj-parent": !props.revision.current, "jello-jj-current": props.revision.current }}>
+      <span class="jello-jj-revision-label">{["Current", "Parent", "Earlier"][props.revision.depth]}</span>
       <span class="jello-jj-change-id">{props.revision.changeID}</span>
-      <Show when={props.revision.immutable}><span class="jello-jj-immutable" title="Immutable revision">◆</span></Show>
+      <Show when={props.revision.immutable}>
+        <svg class="jello-jj-immutable" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" role="img" aria-label="Immutable revision">
+          <rect x="3" y="7" width="10" height="7" rx="2" />
+          <path d="M5 7V5a3 3 0 0 1 6 0v2" />
+        </svg>
+      </Show>
       <Show when={props.revision.bookmarks.length}>
         <span class="jello-jj-bookmarks" title={props.revision.bookmarks.join(", ")}>{props.revision.bookmarks.join(", ")}</span>
       </Show>
       <Show when={props.revision.empty}><span class="jello-jj-empty" title="Empty revision">○</span></Show>
-      <span class="jello-jj-description" title={props.revision.description || "(blank)"}>{props.revision.description || "(blank)"}</span>
+      <span class="jello-jj-description" title={props.revision.description || "No description"}>{props.revision.description || "No description"}</span>
     </span>
   )
 }
@@ -34,14 +39,15 @@ export function StatusBar(props: { readonly revision: number }) {
     },
     async ({ directory, server, client }) => {
       try {
-        const { text, revisions } = (await client.rpc(Status).overview({ directory })) as Overview
-        return { directory, server, text, revisions, summary: summarizeStatus(text), error: false }
+        const { text, revisions, lines } = (await client.rpc(Status).overview({ directory })) as Overview
+        return { directory, server, text, revisions, lines, summary: summarizeStatus(text), error: false }
       } catch (error) {
         return {
           directory, server,
           text: error instanceof Error ? error.message : String(error),
           summary: "jj · status unavailable",
           revisions: [] as Revision[],
+          lines: { modified: 0, added: 0, deleted: 0 },
           error: true,
         }
       }
@@ -70,49 +76,52 @@ export function StatusBar(props: { readonly revision: number }) {
     <Show when={ctx.sessions.current()}>
       <div
         class="jello-jj-status-bar"
+        role="region"
+        aria-label="JJ working copy"
         data-mode={ctx.appearance.mode()}
         classList={{ "jello-jj-status-bar-error": current()?.error }}
       >
-      <button
-        type="button"
+      <div
         class="jello-jj-status-main"
-        title={current()?.text || "Open JJ"}
-        aria-label={`Open JJ: ${current()?.summary || "Loading jj status…"}`}
-        onClick={() => void ctx.commands.run(`${ctx.id}.jj.open`)}
+        title={current()?.text}
       >
-        <span class="jello-jj-brand">jj</span>
         <Show when={current()?.revisions.length} fallback={
           <span class="jello-jj-description">{current()?.summary.replace(/^jj · /, "") || "Loading jj status…"}</span>
         }>
           <For each={[0, 1, 2]}>
             {(depth) => <>
               <Show when={depth > 0 && current()?.revisions.some((revision) => revision.depth === depth)}>
-                <span class="jello-jj-parent-arrow" aria-label={depth === 1 ? "parent" : "grandparent"}>←</span>
+                <svg class="jello-jj-parent-arrow" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                  <path d="m10 3-5 5 5 5" />
+                </svg>
               </Show>
               <For each={current()?.revisions.filter((revision) => revision.depth === depth)}>
                 {(revision) => <RevisionLabel revision={revision} />}
               </For>
             </>}
           </For>
-          <Show when={(current()?.summary.split(" · ").length ?? 0) > 2}>
-          <span class="jello-jj-file-counts">
-            <For each={current()?.summary.split(" · ").slice(2)}>
-              {(count, index) => <>
-                <Show when={index() > 0}><span class="jello-jj-count-separator"> · </span></Show>
-                <span classList={{
-                  "jello-jj-modified": count.endsWith(" modified"),
-                  "jello-jj-added": count.endsWith(" added"),
-                  "jello-jj-deleted": count.endsWith(" deleted"),
-                  "jello-jj-conflicts": count === "conflicts",
-                }} title={count} aria-label={count}>
-                  {count.replace(/^(\d+) modified$/, "~$1").replace(/^(\d+) added$/, "+$1").replace(/^(\d+) deleted$/, "−$1")}
+          <Show when={Object.values(current()?.lines ?? {}).some((count) => count > 0) || current()?.summary.includes(" · conflicts")}>
+          <span class="jello-jj-line-counts" aria-label="Line changes">
+            <For each={[
+              { kind: "modified" as const, symbol: "~", label: "replaced" },
+              { kind: "added" as const, symbol: "+", label: "added" },
+              { kind: "deleted" as const, symbol: "−", label: "deleted" },
+            ]}>
+              {(item) => <Show when={current()?.lines[item.kind]}>
+                <span class={`jello-jj-count jello-jj-${item.kind}`}
+                  title={`${current()?.lines[item.kind]} lines ${item.label}`}
+                  aria-label={`${current()?.lines[item.kind]} lines ${item.label}`}>
+                  {item.symbol}{current()?.lines[item.kind]}
                 </span>
-              </>}
+              </Show>}
             </For>
+            <Show when={current()?.summary.includes(" · conflicts")}>
+              <span class="jello-jj-count jello-jj-conflicts">conflicts</span>
+            </Show>
           </span>
           </Show>
         </Show>
-      </button>
+      </div>
       <button type="button" class="jello-jj-commit" onClick={openCommit} disabled={!current() || current()?.error}
         title="Commit working-copy changes and start a new change">Commit</button>
       </div>

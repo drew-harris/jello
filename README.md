@@ -8,13 +8,16 @@ Run `/jj` to open the **JJ** side panel with `jj status` for the current session
 directory. Run it again or click **Refresh** to update the output. Requires `jj`
 on the OpenCode server's PATH.
 
-A thin, tmux-inspired bottom bar shows the current revision, parents, and grandparents
-(`@ ← @− ← @−−`):
-purple change IDs, blue bookmarks and immutable markers (◆), lime empty markers
-(○), and truncated descriptions. File counts sit on the right, with conflicts
+A compact, read-only bottom toolbar shows cards for the current revision, parents,
+and grandparents:
+purple change IDs, blue bookmarks and lock icons for immutable revisions, lime empty markers
+(○), and truncated descriptions. Line counts sit next to Commit: yellow `~` for
+replacements, green `+` for added lines, and red `−` for deleted lines. Removed and
+added lines are paired within each contiguous edit block to count replacements
+without double-counting; binary changes do not contribute text lines. Conflicts are
 highlighted. Parent details hide on narrow windows. It refreshes
-every 10 seconds while the window is visible, and on focus. Click it to open the
-full status panel; hover to see the raw output or error.
+every 10 seconds while the window is visible, and on focus. Open the
+full status panel with `/jj`; hover over the status to see the raw output or error.
 
 The **Commit** button or `/commit` opens a message dialog. Confirming runs `jj commit -m`,
 committing all working-copy changes and starting a new empty change. Canceling

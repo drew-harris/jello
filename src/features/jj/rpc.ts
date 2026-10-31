@@ -28,6 +28,16 @@ export const Status = Rpc.define({
         type: "object",
         properties: {
           text: { type: "string" },
+          lines: {
+            type: "object",
+            properties: {
+              modified: { type: "integer", minimum: 0 },
+              added: { type: "integer", minimum: 0 },
+              deleted: { type: "integer", minimum: 0 },
+            },
+            required: ["modified", "added", "deleted"],
+            additionalProperties: false,
+          },
           revisions: {
             type: "array",
             items: {
@@ -46,7 +56,7 @@ export const Status = Rpc.define({
             },
           },
         },
-        required: ["text", "revisions"],
+        required: ["text", "revisions", "lines"],
         additionalProperties: false,
       },
     },

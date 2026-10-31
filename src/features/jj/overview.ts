@@ -1,3 +1,5 @@
+import type { LineChanges } from "./line-changes"
+
 export interface Revision {
   changeID: string
   bookmarks: string[]
@@ -11,6 +13,7 @@ export interface Revision {
 export interface Overview {
   text: string
   revisions: Revision[]
+  lines: LineChanges
 }
 
 // JSON-encode each field so quotes, newlines, and Unicode remain safe to parse.
