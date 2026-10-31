@@ -226,7 +226,6 @@ function DiffContents(props: { session: MountedSession; tabID: string; focusRevi
   const file = () => files()[selected()]
   const tree = createMemo(() => buildFileTree(files(), query()))
   const totals = createMemo(() => files().reduce((total, file) => ({ added: total.added + count(file, "additionLines"), deleted: total.deleted + count(file, "deletionLines") }), { added: 0, deleted: 0 }))
-  const revisionTitle = () => `${active()?.data?.revision.description || "No description"}\n${active()?.data?.revision.commitID || ""}`
 
   return <div class="jello-jj-diff-stage" aria-busy={loading()}>
     <Show when={active()?.data || !loading()} fallback={<div class="jello-jj-diff-empty" role="status">Loading revision diff…</div>}>
@@ -269,14 +268,13 @@ function DiffContents(props: { session: MountedSession; tabID: string; focusRevi
         <div class="jello-jj-diff-workspace" ref={workspace} classList={{ "is-resizing": resizing() }}>
           <Show when={sidebar()}>
             <aside class="jello-jj-diff-sidebar" ref={sidebarElement} style={{ width: `${sidebarWidth()}px` }}>
-              <header class="jello-jj-diff-sidebar-heading" title={revisionTitle()}>
+              <div class="jello-jj-diff-filter-row">
+                <label class="jello-jj-diff-filter"><DiffIcon name="search" />
+                  <input type="search" aria-label="Filter changed files" placeholder="Filter files" value={query()} onInput={(event) => setQuery(event.currentTarget.value)} />
+                </label>
                 <button type="button" class="jello-jj-diff-heading-icon" title="Hide file tree" aria-label="Hide file tree"
                   aria-expanded={sidebar()} onClick={() => setSidebar(false)}><DiffIcon name="tree" /></button>
-                <strong>JJ changes</strong><span class="jello-jj-diff-revision-id">{active()?.data?.revision.changeID}</span>
-              </header>
-              <label class="jello-jj-diff-filter"><DiffIcon name="search" />
-                <input type="search" aria-label="Filter changed files" placeholder="Filter files" value={query()} onInput={(event) => setQuery(event.currentTarget.value)} />
-              </label>
+              </div>
               <nav class="jello-jj-diff-files" aria-label="Changed files"><ul>
                 <For each={tree()}>{(node) => <TreeEntry node={node} files={files()} selected={selected()} filtering={!!query()} depth={0} select={setSelected} />}</For>
               </ul><Show when={!tree().length}><p class="jello-jj-diff-muted">{files().length ? "No matching files" : "No file changes"}</p></Show></nav>

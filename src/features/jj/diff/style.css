@@ -46,11 +46,12 @@
 .jello-jj-diff-resize-handle::after { content: ""; position: absolute; inset: 0 -3px; }
 .jello-jj-diff-resize-handle:hover, .jello-jj-diff-resize-handle:focus-visible, .jello-jj-diff-workspace.is-resizing > .jello-jj-diff-resize-handle { background: var(--jj-diff-mod); }
 .jello-jj-diff-workspace.is-resizing, .jello-jj-diff-workspace.is-resizing * { cursor: col-resize; user-select: none; }
-.jello-jj-diff-sidebar-heading { display: flex; align-items: center; gap: 7px; min-height: 40px; padding: 0 10px; flex-shrink: 0; }
-.jello-jj-diff-sidebar-heading strong { white-space: nowrap; font-size: 13px; font-weight: 600; }
-.jello-jj-diff-heading-icon { display: grid; place-items: center; width: 26px; height: 26px; padding: 0; border: 0; border-radius: 6px; background: var(--jj-diff-hover); flex-shrink: 0; }
-.jello-jj-diff-heading-icon:hover { background: var(--jj-diff-selected); }
-.jello-jj-diff-revision-id { color: var(--jj-diff-muted); max-width: 5ch; overflow: hidden; text-overflow: ellipsis; }
+.jello-jj-diff-filter-row { display: flex; align-items: center; gap: 7px; min-height: 40px; padding-right: 10px; flex-shrink: 0; }
+.jello-jj-diff-filter-row .jello-jj-diff-filter { flex: 1; min-width: 0; padding-right: 0; }
+.jello-jj-diff .jello-jj-diff-heading-icon { display: grid; place-items: center; width: 26px; height: 26px; padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--jj-diff-muted); flex-shrink: 0; opacity: .65; transition: opacity 120ms ease, background 120ms ease; }
+.jello-jj-diff-heading-icon > svg { width: 14px; height: 14px; }
+.jello-jj-diff .jello-jj-diff-heading-icon:hover, .jello-jj-diff .jello-jj-diff-heading-icon:focus-visible { background: var(--jj-diff-hover); opacity: 1; }
+.jello-jj-diff-heading-icon:focus-visible { outline: 2px solid var(--jj-diff-mod); outline-offset: 1px; }
 .jello-jj-diff-totals { display: flex; gap: 8px; margin-left: auto; white-space: nowrap; font-size: 11px; font-variant-numeric: tabular-nums; }
 .jello-jj-diff-added { color: var(--jj-diff-add); }
 .jello-jj-diff-deleted { color: var(--jj-diff-del); }
@@ -77,12 +78,14 @@
 .jello-jj-diff-main { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; }
 .jello-jj-diff-toolbar { display: flex; align-items: center; gap: 4px; min-height: 40px; padding: 0 12px; border-bottom: 1px solid var(--jj-diff-border); flex-shrink: 0; }
 .jello-jj-diff-toolbar-spacer { flex: 1; }
-.jello-jj-diff-icon-button, .jello-jj-diff-layout button { display: inline-grid; place-items: center; width: 28px; height: 26px; padding: 0; border: 1px solid transparent; border-radius: 5px; background: transparent; }
+.jello-jj-diff-icon-button, .jello-jj-diff-layout button { display: inline-grid; place-items: center; width: 28px; height: 26px; padding: 0; border: 1px solid transparent; border-radius: 6px; background: transparent; transition: background 120ms ease, border-color 120ms ease, color 120ms ease; }
 .jello-jj-diff-icon-button:hover, .jello-jj-diff-layout button:hover { background: var(--jj-diff-hover); }
 .jello-jj-diff-icon-button[aria-pressed="true"] { background: var(--jj-diff-hover); }
-.jello-jj-diff-layout { display: flex; border: 1px solid var(--jj-diff-border); border-radius: 8px; background: var(--jj-diff-hover); }
-.jello-jj-diff-layout button { width: 32px; }
-.jello-jj-diff-layout button[aria-pressed="true"] { border-color: var(--jj-diff-muted); background: var(--jj-diff-bg); }
+.jello-jj-diff-layout { display: flex; padding: 1px; border: 1px solid color-mix(in srgb, var(--jj-diff-fg) 8%, transparent); border-radius: 8px; background: var(--jj-diff-hover); }
+.jello-jj-diff .jello-jj-diff-layout button { width: 32px; color: var(--jj-diff-muted); }
+.jello-jj-diff .jello-jj-diff-layout button[aria-pressed="true"] { border-color: color-mix(in srgb, var(--jj-diff-fg) 18%, transparent); background: var(--jj-diff-bg); color: var(--jj-diff-fg); }
+.jello-jj-diff-toolbar button:focus:not(:focus-visible) { outline: none; box-shadow: none; }
+.jello-jj-diff-toolbar button:focus-visible { outline: 2px solid var(--jj-diff-mod); outline-offset: 1px; }
 .jello-jj-diff-file-heading { display: flex; align-items: center; gap: 7px; min-height: 30px; padding: 0 16px; border-bottom: 1px solid var(--jj-diff-border); flex-shrink: 0; }
 .jello-jj-diff-file-heading > .jello-jj-diff-file-kind { margin-left: 0; }
 .jello-jj-diff-file-heading strong { font-weight: 600; white-space: nowrap; }
@@ -91,6 +94,3 @@
 .jello-jj-diff-renderer { --diffs-font-size: 13px; --diffs-line-height: 23px; min-height: 100%; }
 .jello-jj-diff-empty { padding: 24px; line-height: 1.6; opacity: 0.7; overflow-wrap: anywhere; }
 .jello-jj-diff-muted { padding: 8px; color: var(--jj-diff-muted); }
-@container (max-width: 650px) {
-  .jello-jj-diff-sidebar-heading { flex-wrap: wrap; padding-block: 6px; }
-}
