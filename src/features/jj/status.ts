@@ -5,11 +5,11 @@ import { parseRevisions, revisionTemplate, type Overview } from "./overview.ts"
 const execute = promisify(execFile)
 
 export async function readOverview(directory: string, signal?: AbortSignal): Promise<Overview> {
-  // Snapshot the working copy once, then read both revisions without another snapshot.
+  // Snapshot once, then read the current revision and two ancestor levels.
   const { text } = await readStatus(directory, signal)
   const { stdout } = await execute("jj", [
     "log", "--ignore-working-copy", "--no-graph", "--color=never", "--no-pager",
-    "-r", "@ | parents(@)", "-T", revisionTemplate,
+    "-r", "ancestors(@, 3)", "-T", revisionTemplate,
   ], { cwd: directory, signal, timeout: 15_000, maxBuffer: 4 * 1024 * 1024 })
   return { text, revisions: parseRevisions(stdout) }
 }

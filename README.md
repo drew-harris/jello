@@ -8,7 +8,8 @@ Run `/jj` to open the **JJ** side panel with `jj status` for the current session
 directory. Run it again or click **Refresh** to update the output. Requires `jj`
 on the OpenCode server's PATH.
 
-A thin, tmux-inspired bottom bar shows the current revision and its parents:
+A thin, tmux-inspired bottom bar shows the current revision, parents, and grandparents
+(`@ ← @− ← @−−`):
 purple change IDs, blue bookmarks and immutable markers (◆), lime empty markers
 (○), and truncated descriptions. File counts sit on the right, with conflicts
 highlighted. Parent details hide on narrow windows. It refreshes

@@ -8,7 +8,7 @@ import type { Overview, Revision } from "./overview"
 function RevisionLabel(props: { revision: Revision }) {
   return (
     <span class="jello-jj-revision" classList={{ "jello-jj-parent": !props.revision.current }}>
-      <span class="jello-jj-revision-label">{props.revision.current ? "@" : "@−"}</span>
+      <span class="jello-jj-revision-label">{["@", "@−", "@−−"][props.revision.depth]}</span>
       <span class="jello-jj-change-id">{props.revision.changeID}</span>
       <Show when={props.revision.immutable}><span class="jello-jj-immutable" title="Immutable revision">◆</span></Show>
       <Show when={props.revision.bookmarks.length}>
@@ -84,14 +84,15 @@ export function StatusBar(props: { readonly revision: number }) {
         <Show when={current()?.revisions.length} fallback={
           <span class="jello-jj-description">{current()?.summary.replace(/^jj · /, "") || "Loading jj status…"}</span>
         }>
-          <For each={current()?.revisions.filter((revision) => revision.current)}>
-            {(revision) => <RevisionLabel revision={revision} />}
-          </For>
-          <Show when={current()?.revisions.some((revision) => !revision.current)}>
-            <span class="jello-jj-parent-arrow" aria-label="parent">←</span>
-          </Show>
-          <For each={current()?.revisions.filter((revision) => !revision.current)}>
-            {(revision) => <RevisionLabel revision={revision} />}
+          <For each={[0, 1, 2]}>
+            {(depth) => <>
+              <Show when={depth > 0 && current()?.revisions.some((revision) => revision.depth === depth)}>
+                <span class="jello-jj-parent-arrow" aria-label={depth === 1 ? "parent" : "grandparent"}>←</span>
+              </Show>
+              <For each={current()?.revisions.filter((revision) => revision.depth === depth)}>
+                {(revision) => <RevisionLabel revision={revision} />}
+              </For>
+            </>}
           </For>
           <Show when={(current()?.summary.split(" · ").length ?? 0) > 2}>
           <span class="jello-jj-file-counts">

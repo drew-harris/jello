@@ -5,6 +5,7 @@ export interface Revision {
   empty: boolean
   immutable: boolean
   current: boolean
+  depth: number
 }
 
 export interface Overview {
@@ -21,6 +22,7 @@ export const revisionTemplate = [
   "',\"empty\":' ++ json(empty)",
   "',\"immutable\":' ++ json(immutable)",
   "',\"current\":' ++ json(current_working_copy)",
+  "',\"depth\":' ++ if(current_working_copy, \"0\", if(self.contained_in(\"parents(@)\"), \"1\", \"2\"))",
   "\"}\\n\"",
 ].join(" ++ ")
 
