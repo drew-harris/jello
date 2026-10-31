@@ -325,24 +325,28 @@ export function TreeView(props: { session: MountedSession; revision: number; foc
       if (event.target instanceof Element && !event.target.closest("button, a, input, textarea, select, [contenteditable]")) panel.focus({ preventScroll: true })
     }} onKeyDown={onShortcut}>
     <header class="jello-jj-tree-toolbar">
+      <span class="jello-jj-tree-keyboard-slot">
       <Show when={focused() && !ctx.dialogs.active() && !confirming() && !contextMenu()}>
         <span class="jello-jj-tree-keyboard" role="img" aria-label="Tree keyboard shortcuts active"
           title="Keyboard shortcuts active: j/k select, n new change, Shift+B set bookmark, l expand files, a abandon (confirmation), d diff, e edit, Enter describe, Shift+S squash below">
           <span aria-hidden="true"><ui.Icon name="keyboard" size="small" /></span>
         </span>
       </Show>
+      </span>
       <div class="jello-jj-tree-heading" title={props.session.directory}>
         <strong>{props.session.directory.split(/[\\/]/).filter(Boolean).at(-1) || props.session.directory}</strong>
         <span>Revision history</span>
       </div>
+      <div class="jello-jj-tree-tools" role="group" aria-label="History actions">
       <button type="button" class="jello-jj-tree-tool" title="New change (jj new)" aria-label="New change"
-        disabled={history.loading || mutating()} aria-busy={creating()} onClick={() => void createChange()}>+</button>
-      <button type="button" class="jello-jj-tree-tool" title="Jump to working copy" aria-label="Jump to working copy" disabled={!commits().some((commit) => commit.current)} onClick={jump}>@</button>
-      <button type="button" class="jello-jj-tree-tool" title="Refresh history" aria-label="Refresh history" disabled={history.loading || mutating()} onClick={refresh}>
-        <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-          <path d="M16 8a6 6 0 1 0 0 5M16 3v5h-5" />
-        </svg>
+        disabled={history.loading || mutating()} aria-busy={creating()} onClick={() => void createChange()}>
+        <span aria-hidden="true"><ui.Icon name="plus-small" size="small" /></span>
       </button>
+      <button type="button" class="jello-jj-tree-tool is-working-copy" title="Jump to working copy" aria-label="Jump to working copy" disabled={!commits().some((commit) => commit.current)} onClick={jump}>@</button>
+      <button type="button" class="jello-jj-tree-tool" title="Refresh history" aria-label="Refresh history" disabled={history.loading || mutating()} onClick={refresh}>
+        <span aria-hidden="true"><ui.Icon name="refresh" size="small" /></span>
+      </button>
+      </div>
     </header>
     <Show when={history.latest?.error}>
       <div class="jello-jj-tree-empty" role="alert"><strong>History unavailable</strong><p>{history.latest?.error}</p><button type="button" onClick={refresh}>Retry</button></div>
@@ -420,7 +424,10 @@ export function TreeView(props: { session: MountedSession; revision: number; foc
                   <span class="jello-jj-tree-meta">
                     <ChangeID commit={row.commit} />
                     <Show when={row.commit.current}><span class="jello-jj-tree-current">@ working copy</span></Show>
-                    <For each={row.commit.bookmarks}>{(bookmark) => <span class="jello-jj-tree-bookmark" title={bookmark}>{bookmark}</span>}</For>
+                    <For each={row.commit.bookmarks}>{(bookmark) => <span class="jello-jj-tree-bookmark" title={`Bookmark: ${bookmark}`}>
+                      <span aria-hidden="true"><ui.Icon name="branch" size="small" /></span>
+                      <span class="jello-jj-tree-bookmark-name">{bookmark}</span>
+                    </span>}</For>
                     <Show when={!root(row.commit.commitID)}>
                       <span class="jello-jj-tree-row-author" title={row.commit.author || "Unknown author"}>{row.commit.author || "Unknown author"}</span>
                     </Show>
