@@ -86,6 +86,16 @@ function DiffContents(props: { session: MountedSession; tabID: string }) {
   const [layout, setLayout] = createSignal<"unified" | "split">("unified")
   const [wrap, setWrap] = createSignal(true)
   const [sidebar, setSidebar] = createSignal(true)
+  const [sidebarWidth, setSidebarWidth] = createSignal(240)
+  const [resizing, setResizing] = createSignal(false)
+  let workspace!: HTMLDivElement
+  let sidebarElement!: HTMLElement
+  let drag: { pointerID: number; x: number; width: number } | undefined
+  const resizeSidebar = (width: number) => {
+    const available = workspace.getBoundingClientRect().width
+    const minimum = Math.min(160, available * 0.4)
+    setSidebarWidth(Math.round(Math.max(minimum, Math.min(width, available - 160))))
+  }
   const [selected, setSelected] = createSignal(0)
   const [query, setQuery] = createSignal("")
   const [result, { refetch }] = createResource(
@@ -113,9 +123,9 @@ function DiffContents(props: { session: MountedSession; tabID: string }) {
   return <div class="jello-jj-diff-stage">
     <Show when={!result.loading} fallback={<div class="jello-jj-diff-empty" role="status">Loading revision diff…</div>}>
       <Show when={!active()?.error} fallback={<div class="jello-jj-diff-empty" role="alert"><p>{active()?.error}</p><button type="button" onClick={() => void refetch()}>Retry</button></div>}>
-        <div class="jello-jj-diff-workspace">
+        <div class="jello-jj-diff-workspace" ref={workspace} classList={{ "is-resizing": resizing() }}>
           <Show when={sidebar()}>
-            <aside class="jello-jj-diff-sidebar">
+            <aside class="jello-jj-diff-sidebar" ref={sidebarElement} style={{ width: `${sidebarWidth()}px` }}>
               <header class="jello-jj-diff-sidebar-heading" title={revisionTitle()}>
                 <button type="button" class="jello-jj-diff-heading-icon" title="Hide file tree" aria-label="Hide file tree"
                   aria-expanded={sidebar()} onClick={() => setSidebar(false)}><DiffIcon name="tree" /></button>
@@ -129,6 +139,30 @@ function DiffContents(props: { session: MountedSession; tabID: string }) {
                 <For each={tree()}>{(node) => <TreeEntry node={node} files={files()} selected={selected()} filtering={!!query()} depth={0} select={setSelected} />}</For>
               </ul><Show when={!tree().length}><p class="jello-jj-diff-muted">{files().length ? "No matching files" : "No file changes"}</p></Show></nav>
             </aside>
+            <div class="jello-jj-diff-resize-handle" role="separator" tabindex={0}
+              aria-label="Resize file tree" aria-orientation="vertical" aria-valuenow={sidebarWidth()}
+              title="Drag to resize file tree; double-click to reset"
+              onPointerDown={(event) => {
+                if (event.button !== 0 || drag) return
+                event.preventDefault()
+                drag = { pointerID: event.pointerId, x: event.clientX, width: sidebarElement.getBoundingClientRect().width }
+                event.currentTarget.setPointerCapture(event.pointerId)
+                setResizing(true)
+              }}
+              onPointerMove={(event) => {
+                if (drag?.pointerID === event.pointerId) resizeSidebar(drag.width + event.clientX - drag.x)
+              }}
+              onPointerUp={(event) => {
+                if (drag?.pointerID === event.pointerId) event.currentTarget.releasePointerCapture(event.pointerId)
+              }}
+              onLostPointerCapture={() => { drag = undefined; setResizing(false) }}
+              onDblClick={() => resizeSidebar(240)}
+              onKeyDown={(event) => {
+                if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return
+                event.preventDefault()
+                event.stopPropagation()
+                resizeSidebar(sidebarElement.getBoundingClientRect().width + (event.key === "ArrowLeft" ? -16 : 16))
+              }} />
           </Show>
           <div class="jello-jj-diff-main">
             <div class="jello-jj-diff-toolbar">
