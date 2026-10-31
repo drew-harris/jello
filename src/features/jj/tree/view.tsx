@@ -298,6 +298,12 @@ export function TreeView(props: { session: MountedSession; revision: number; foc
     if (!(event.target instanceof Element) || !panel.contains(event.target)
       || event.target.closest("input, textarea, select, [contenteditable]:not([contenteditable=false]), [role=textbox]")) return
     const action = treeShortcut(event)
+    if (action === "refresh") {
+      event.preventDefault()
+      event.stopPropagation()
+      refresh()
+      return
+    }
     const target = selected()
     if (!action || !target) return
     event.preventDefault()
@@ -328,7 +334,7 @@ export function TreeView(props: { session: MountedSession; revision: number; foc
       <span class="jello-jj-tree-keyboard-slot">
       <Show when={focused() && !ctx.dialogs.active() && !confirming() && !contextMenu()}>
         <span class="jello-jj-tree-keyboard" role="img" aria-label="Tree keyboard shortcuts active"
-          title="Keyboard shortcuts active: j/k select, n new change, Shift+B set bookmark, l expand files, a abandon (confirmation), d diff, e edit, Enter describe, Shift+S squash below">
+          title="Keyboard shortcuts active: j/k select, n new change, Shift+B set bookmark, l expand files, a abandon (confirmation), d diff, e edit, Enter describe, Shift+S squash below, r refresh">
           <span aria-hidden="true"><ui.Icon name="keyboard" size="small" /></span>
         </span>
       </Show>
@@ -343,7 +349,7 @@ export function TreeView(props: { session: MountedSession; revision: number; foc
         <span aria-hidden="true"><ui.Icon name="plus-small" size="small" /></span>
       </button>
       <button type="button" class="jello-jj-tree-tool is-working-copy" title="Jump to working copy" aria-label="Jump to working copy" disabled={!commits().some((commit) => commit.current)} onClick={jump}>@</button>
-      <button type="button" class="jello-jj-tree-tool" title="Refresh history" aria-label="Refresh history" disabled={history.loading || mutating()} onClick={refresh}>
+      <button type="button" class="jello-jj-tree-tool" title="Refresh history (r)" aria-label="Refresh history" disabled={history.loading || mutating()} onClick={refresh}>
         <span aria-hidden="true"><ui.Icon name="refresh" size="small" /></span>
       </button>
       </div>

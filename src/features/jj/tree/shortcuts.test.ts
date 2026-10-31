@@ -4,6 +4,13 @@ import { treeShortcut } from "./shortcuts"
 
 const key = (key: string, options = {}) => ({ key, shiftKey: false, metaKey: false, ctrlKey: false, altKey: false, isComposing: false, repeat: false, ...options })
 
+test("r refreshes without accepting modifiers or repeated keypresses", () => {
+  assert.equal(treeShortcut(key("r")), "refresh")
+  for (const modifier of ["ctrlKey", "shiftKey", "metaKey", "altKey", "isComposing", "repeat"]) {
+    assert.equal(treeShortcut(key("r", { [modifier]: true })), undefined)
+  }
+})
+
 test("tree shortcuts map the requested keys and require Shift for bookmarks", () => {
   for (const [input, action] of [["j", "down"], ["k", "up"], ["n", "new"], ["l", "expand"], ["a", "abandon"], ["d", "diff"], ["Enter", "describe"]]) {
     assert.equal(treeShortcut(key(input)), action)
