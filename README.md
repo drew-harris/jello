@@ -15,8 +15,9 @@ indicate parents outside the displayed history; they do not infer connections
 through hidden revisions. Load more adds 100 revisions at a time (up to 2,000).
 Select a commit to inspect its description, author and timestamp, copy IDs, or
 open its diff. Use ↑/↓ to navigate, Enter or double-click to open a diff, and **@**
-to jump to the working copy. Refresh runs on window focus, reopening the panel,
-and after committing; the toolbar also has a manual refresh action.
+to jump to the working copy. Refresh runs every 10 seconds while the window is
+visible, when returning to the app, reopening the panel, and after committing;
+the toolbar also has a manual refresh action. Requests never overlap.
 
 Right-click a change and choose **Abandon** to run `jj abandon` on that exact
 commit. Immutable changes have the action disabled. JJ rebases descendants onto

@@ -49,8 +49,14 @@ export function TreeView(props: { session: MountedSession; revision: number; onC
   const root = (id: string) => /^0+$/.test(id)
   const refresh = () => { if (!history.loading && !abandoning()) void refetch() }
   const onFocus = () => { if (!document.hidden) refresh() }
+  const timer = setInterval(onFocus, 10_000)
   window.addEventListener("focus", onFocus)
-  onCleanup(() => window.removeEventListener("focus", onFocus))
+  document.addEventListener("visibilitychange", onFocus)
+  onCleanup(() => {
+    clearInterval(timer)
+    window.removeEventListener("focus", onFocus)
+    document.removeEventListener("visibilitychange", onFocus)
+  })
   const choose = (index: number, focus = false) => {
     const commit = commits()[index]
     if (!commit) return
