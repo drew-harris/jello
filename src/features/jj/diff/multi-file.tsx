@@ -41,7 +41,7 @@ export function MultiFileDiff(props: {
       unsafeCSS: `${diffThemeCSS(ctx.appearance.mode() === "dark")}
         [data-diffs-header=default] {
           padding: 10px 16px;
-          background-color: ${ctx.appearance.mode() === "dark" ? "#25282c" : "#edf0f4"};
+          background-color: ${ctx.appearance.mode() === "dark" ? "#232323" : "#f3f3f3"};
         }
         [data-header-content] { gap: 12px; }
         [data-header-content] [data-title], [data-header-content] [data-prev-name] {
