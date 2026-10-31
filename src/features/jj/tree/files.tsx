@@ -3,6 +3,7 @@ import { usePlugin, type MountedSession } from "@opencode/plugin/gui"
 import { Status } from "../rpc"
 import { errorMessage } from "../errors"
 import type { ChangedFile } from "../changed-files"
+import { diffTabID } from "../diff/tab"
 
 export function RevisionFiles(props: { session: MountedSession; commitID: string }) {
   // The boundary must mount before the resource is created, otherwise its first
@@ -32,11 +33,13 @@ function RevisionFileContents(props: { session: MountedSession; commitID: string
       </div>}>
         <div class="jello-jj-tree-files-heading">{files.latest?.files.length} changed {files.latest?.files.length === 1 ? "file" : "files"}</div>
         <Show when={files.latest?.files.length} fallback={<div class="jello-jj-tree-files-state">No file changes</div>}>
-          <ul><For each={files.latest?.files}>{(file) => <li title={`${file.status}: ${file.path}`}>
+          <ul><For each={files.latest?.files}>{(file) => <li><button type="button" class="jello-jj-tree-file-link"
+            title={`Open diff · ${file.path}`} aria-label={`Open diff for ${file.path}`}
+            onClick={() => ctx.layout.open(`${ctx.id}:${diffTabID({ directory: props.session.directory, commitID: props.commitID, file: file.path })}`, props.session, { tab: "select" })}>
             <span class="jello-jj-tree-file-status" data-kind={kind(file)}>{kind(file)}</span>
             <span aria-hidden="true"><ui.Icon name="file-document" size="small" /></span>
             <span class="jello-jj-tree-file-path">{file.path}</span>
-          </li>}</For></ul>
+          </button></li>}</For></ul>
         </Show>
       </Show>
     </Show>

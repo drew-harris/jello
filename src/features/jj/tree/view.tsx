@@ -43,14 +43,18 @@ export function TreeView(props: { session: MountedSession; revision: number; onC
   })
   const [abandoning, setAbandoning] = createSignal(false)
   const [creating, setCreating] = createSignal(false)
-  const [expanded, setExpanded] = createSignal(new Set<string>())
+  const expansionState = () => ctx.stores.jjTreeExpanded(props.session)
+  const expanded = createMemo(() => {
+    const value = expansionState().value
+    return new Set(value?.directory === props.session.directory ? value.changes : [])
+  })
   const [rowHeights, setRowHeights] = createSignal<Record<string, number>>({})
-  const toggleFiles = (changeID: string) => setExpanded((previous) => {
-    const next = new Set(previous)
+  const toggleFiles = (changeID: string) => {
+    const next = new Set(expanded())
     if (next.has(changeID)) next.delete(changeID)
     else next.add(changeID)
-    return next
-  })
+    expansionState().set({ directory: props.session.directory, changes: Array.from(next) })
+  }
   const mutating = () => abandoning() || creating()
   const [contextMenu, setContextMenu] = createSignal<{ x: number; y: number; commit: TreeCommit; trigger: HTMLButtonElement }>()
   const buttons = new Map<string, HTMLButtonElement>()

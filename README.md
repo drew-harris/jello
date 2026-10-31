@@ -32,6 +32,11 @@ or cancel to leave it unchanged. Failures remain visible in the modal.
 paths and added/modified/deleted markers. The list reads that exact commit, not
 the current working copy. Use →/← to expand/collapse with the keyboard. Graph
 connections adjust to the expanded rows; long file lists scroll independently.
+Expanded changes are remembered per session and directory when leaving and
+returning to the panel.
+Click a file to open a file-targeted **JJ Diff** tab with that file selected and
+the file tree hidden. Its toolbar can show the file tree again. File-targeted
+tabs retain their commit, directory and file when restored.
 
 A compact, read-only bottom toolbar shows cards for the current revision, parents,
 and grandparents:

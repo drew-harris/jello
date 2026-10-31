@@ -105,8 +105,10 @@
 .jello-jj-tree-files { margin: 0 14px 8px var(--tree-gutter); padding: 0 0 4px 10px; border-left: 1px solid var(--tree-border); }
 .jello-jj-tree-files-heading { padding: 4px 0; font-size: 10px; color: var(--tree-muted); }
 .jello-jj-tree-files ul { list-style: none; margin: 0; padding: 0; max-height: 240px; overflow: auto; overscroll-behavior: contain; }
-.jello-jj-tree-files li { display: flex; align-items: center; gap: 6px; min-width: 0; height: 24px; font-size: 11px; }
-.jello-jj-tree-files li > span[aria-hidden] { display: flex; flex-shrink: 0; color: var(--tree-muted); }
+.jello-jj-tree-files li { min-width: 0; height: 24px; }
+.jello-jj-tree .jello-jj-tree-file-link { display: flex; align-items: center; gap: 6px; box-sizing: border-box; width: 100%; height: 24px; padding: 0 4px; border: 0; border-radius: 4px; background: transparent; color: inherit; font-size: 11px; text-align: left; }
+.jello-jj-tree-file-link:hover { background: var(--tree-hover); }
+.jello-jj-tree-file-link > span[aria-hidden] { display: flex; flex-shrink: 0; color: var(--tree-muted); }
 .jello-jj-tree-file-path { overflow: hidden; text-overflow: ellipsis; white-space: pre; font-family: var(--tree-mono), monospace; }
 .jello-jj-tree-file-status { width: 12px; flex-shrink: 0; font-size: 10px; font-weight: 600; color: var(--tree-muted); }
 .jello-jj-tree-file-status[data-kind="A"] { color: var(--tree-empty); }

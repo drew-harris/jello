@@ -8,7 +8,7 @@ import { promisify } from "node:util"
 import { parsePatchFiles } from "@pierre/diffs"
 import { commit } from "../commit"
 import { readRevisionDiff } from "./server"
-import { diffTabID, parseDiffTabID } from "./tab"
+import { diffFileIndex, diffTabID, parseDiffTabID } from "./tab"
 
 const execute = promisify(execFile)
 
@@ -18,6 +18,28 @@ test("diff tabs preserve the exact revision and directory across restores", () =
   for (const id of ["jj", "jj-diff/@/dir", `jj-diff/${target.commitID}/%zz`, `jj-diff/${target.commitID}/x/extra`]) {
     assert.equal(parseDiffTabID(id), undefined)
   }
+})
+
+test("file-targeted diff tabs preserve paths and stay distinct from full revision tabs", () => {
+  const target = { commitID: "b".repeat(40), directory: "/repo/space ü#%", file: 'src/a "quoted" file\nname.ts' }
+  const id = diffTabID(target)
+  assert.deepEqual(parseDiffTabID(id), target)
+  assert.notEqual(id, diffTabID({ directory: target.directory, commitID: target.commitID }))
+  assert.notEqual(id, diffTabID({ ...target, file: "src/other.ts" }))
+  const base = diffTabID({ directory: target.directory, commitID: target.commitID })
+  for (const suffix of ["/file/", "/file/%zz", "/file/x/extra", "/unknown/x"]) {
+    assert.equal(parseDiffTabID(base + suffix), undefined)
+  }
+})
+
+test("file selection matches exact paths, including deleted and renamed files", () => {
+  const files = [{ name: "src/a.ts" }, { name: "src/b.ts" }, { name: "new.ts", prevName: "old.ts" }, { name: "deleted.ts" }]
+  assert.equal(diffFileIndex(files), 0)
+  assert.equal(diffFileIndex(files, "src/b.ts"), 1)
+  assert.equal(diffFileIndex(files, "new.ts"), 2)
+  assert.equal(diffFileIndex(files, "old.ts"), 2)
+  assert.equal(diffFileIndex(files, "deleted.ts"), 3)
+  assert.equal(diffFileIndex(files, "missing.ts"), -1)
 })
 
 test("rejects arbitrary revision expressions before executing jj", async () => {

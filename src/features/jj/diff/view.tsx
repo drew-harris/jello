@@ -3,7 +3,7 @@ import { createEffect, createMemo, createResource, createSignal, ErrorBoundary, 
 import { usePlugin, type MountedSession } from "@opencode/plugin/gui"
 import { Status } from "../rpc"
 import type { RevisionDiff } from "./server"
-import { parseDiffTabID } from "./tab"
+import { diffFileIndex, parseDiffTabID } from "./tab"
 import { errorMessage } from "../errors"
 import { buildFileTree, type FileTreeNode } from "./tree"
 import { DiffIcon, FileIcon } from "./icons"
@@ -68,7 +68,7 @@ function TreeEntry(props: {
   </li>
 }
 
-export function DiffView(props: { session: MountedSession; tabID: string }) {
+export function DiffView(props: { session: MountedSession; tabID: string; focusRevision?: number }) {
   const ctx = usePlugin()
   const ui = ctx.ui
   // Boundaries must precede resource/memo creation to avoid suspending the window.
@@ -77,17 +77,17 @@ export function DiffView(props: { session: MountedSession; tabID: string }) {
     <p>{errorMessage(error)}</p><ui.Button onClick={reset}>Retry</ui.Button>
   </div>}>
     <Suspense fallback={<div class="jello-jj-diff-empty" role="status">Loading revision diff…</div>}>
-      <DiffContents session={props.session} tabID={props.tabID} />
+      <DiffContents session={props.session} tabID={props.tabID} focusRevision={props.focusRevision} />
     </Suspense>
     </ErrorBoundary>
   </section>
 }
 
-function DiffContents(props: { session: MountedSession; tabID: string }) {
+function DiffContents(props: { session: MountedSession; tabID: string; focusRevision?: number }) {
   const ctx = usePlugin()
   const [layout, setLayout] = createSignal<"unified" | "split">("unified")
   const [wrap, setWrap] = createSignal(true)
-  const [sidebar, setSidebar] = createSignal(true)
+  const [sidebar, setSidebar] = createSignal(!parseDiffTabID(props.tabID)?.file)
   const [sidebarWidth, setSidebarWidth] = createSignal(240)
   const [resizing, setResizing] = createSignal(false)
   let workspace!: HTMLDivElement
@@ -109,7 +109,7 @@ function DiffContents(props: { session: MountedSession; tabID: string }) {
       try {
         const target = parseDiffTabID(id)
         if (!target) throw new Error("Invalid diff tab")
-        const data = await client.rpc(Status).diff(target) as RevisionDiff
+        const data = await client.rpc(Status).diff({ directory: target.directory, commitID: target.commitID }) as RevisionDiff
         const files = parsePatchFiles(data.patch, `${target.directory}:${target.commitID}`, true).flatMap((patch) => patch.files)
         return { id, data, files, error: undefined }
       } catch (error) {
@@ -117,7 +117,19 @@ function DiffContents(props: { session: MountedSession; tabID: string }) {
       }
     },
   )
-  createEffect(() => { result(); setSelected(0); setQuery("") })
+  createEffect(() => {
+    const target = parseDiffTabID(props.tabID)
+    if (target?.file) {
+      // Reopening a file-targeted tab restores the clicked file and hidden tree,
+      // even if the user navigated elsewhere in that tab in the meantime.
+      props.focusRevision
+      setSidebar(false)
+    }
+    const loaded = result()
+    if (loaded?.id !== props.tabID) return
+    setSelected(diffFileIndex(loaded.files, target?.file))
+    setQuery("")
+  })
   const active = () => result()?.id === props.tabID ? result() : undefined
   const files = () => active()?.files ?? []
   const file = () => files()[selected()]
@@ -210,7 +222,7 @@ function DiffContents(props: { session: MountedSession; tabID: string }) {
                 <button type="button" title="Split diff" aria-label="Split diff" aria-pressed={layout() === "split"} onClick={() => setLayout("split")}><DiffIcon name="split" /></button>
               </div>
             </div>
-            <Show when={file()} keyed fallback={<div class="jello-jj-diff-empty">This revision has no file changes.</div>}>{(file) => <>
+            <Show when={file()} keyed fallback={<div class="jello-jj-diff-empty">{parseDiffTabID(props.tabID)?.file && files().length ? "The requested file was not found in this revision's diff. Use the file tree to choose another file." : "This revision has no file changes."}</div>}>{(file) => <>
               <header class="jello-jj-diff-file-heading" title={file.prevName ? `${file.prevName} → ${file.name}` : file.name}>
                 <span class="jello-jj-diff-file-kind" data-kind={fileKind(file)}>{fileKind(file)}</span><FileIcon name={file.name} />
                 <strong>{file.name.split("/").pop()}</strong><span class="jello-jj-diff-file-directory">{file.name.includes("/") ? file.name.slice(0, file.name.lastIndexOf("/") + 1) : ""}</span>
