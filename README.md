@@ -19,6 +19,12 @@ highlighted. Parent details hide on narrow windows. It refreshes
 every 10 seconds while the window is visible, and on focus. Open the
 full status panel with `/jj`; hover over the status to see the raw output or error.
 
+Click **Parent** or **Earlier** to open a **JJ Diff** tab for that exact commit.
+The viewer uses [Pierre Diffs](https://diffs.com/) with syntax highlighting,
+unified/split layouts, line wrapping, and a searchable changed-file list. Tabs
+remain pinned to their commit and original directory, and can be reopened after
+closing. Binary and metadata-only changes show a summary rather than text hunks.
+
 The **Commit** button or `/commit` opens a message dialog. Confirming runs `jj commit -m`,
 committing all working-copy changes and starting a new empty change. Canceling
 makes no changes; failures remain visible in the dialog.

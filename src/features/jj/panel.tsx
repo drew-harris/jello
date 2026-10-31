@@ -2,6 +2,7 @@ import { createResource, Show } from "solid-js"
 import { usePlugin, type MountedSession } from "@opencode/plugin/gui"
 import { Status } from "./rpc"
 import type { definition } from "../../gui/definition"
+import { errorMessage } from "./errors"
 
 // Read props.session reactively: the panel stays mounted across sessions.
 export function PanelView(props: { readonly session: MountedSession; readonly revision: number }) {
@@ -14,7 +15,7 @@ export function PanelView(props: { readonly session: MountedSession; readonly re
         const result = (await client.rpc(Status).status({ directory })) as { text: string }
         return { text: result.text, error: false }
       } catch (error) {
-        return { text: error instanceof Error ? error.message : String(error), error: true }
+        return { text: errorMessage(error), error: true }
       }
     },
   )

@@ -137,6 +137,18 @@
   padding: 4px 7px;
 }
 
+.jello-jj-revision-link {
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.jello-jj-revision-link:hover,
+.jello-jj-revision-link:focus-visible { background: color-mix(in srgb, currentColor 5%, transparent); }
+
 .jello-jj-revision-label {
   opacity: 0.5;
   font-size: 10px;

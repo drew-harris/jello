@@ -1,6 +1,7 @@
 import type { LineChanges } from "./line-changes"
 
 export interface Revision {
+  commitID: string
   changeID: string
   bookmarks: string[]
   description: string
@@ -19,6 +20,7 @@ export interface Overview {
 // JSON-encode each field so quotes, newlines, and Unicode remain safe to parse.
 export const revisionTemplate = [
   "\"{\"",
+  "'\"commitID\":' ++ json(self.commit_id()) ++ ','",
   "'\"changeID\":' ++ json(self.change_id().shortest().prefix())",
   "',\"bookmarks\":' ++ json(bookmarks.map(|b| b.name()))",
   "',\"description\":' ++ json(description.first_line())",

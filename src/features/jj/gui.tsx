@@ -5,10 +5,12 @@ import { PanelView } from "./panel"
 import { StatusBar } from "./status-bar"
 import { CommitDialog } from "./commit-dialog"
 import { Status } from "./rpc"
+import { setupDiff } from "./diff/gui"
 import css from "./style.css?inline"
 
 // All JJ window contributions live here; the Jello shell only composes features.
 export const setupJJ: Plugin.Setup<typeof definition> = (ctx) => {
+  setupDiff(ctx)
   const key = `${ctx.id}:jj`
   const [revision, setRevision] = createSignal(0)
   const open = () => {

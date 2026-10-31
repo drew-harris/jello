@@ -23,7 +23,8 @@
     "prepublishOnly": "vite build"
   },
   "dependencies": {
-    "@opencode/plugin": "^2.2.1"
+    "@opencode/plugin": "^2.2.1",
+    "@pierre/diffs": "^1.6.2"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

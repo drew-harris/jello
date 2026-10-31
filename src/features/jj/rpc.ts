@@ -1,8 +1,41 @@
 import { Rpc } from "@opencode/plugin/rpc"
 
+const revisionSchema = {
+  type: "object",
+  properties: {
+    commitID: { type: "string" },
+    changeID: { type: "string" },
+    bookmarks: { type: "array", items: { type: "string" } },
+    description: { type: "string" },
+    empty: { type: "boolean" },
+    immutable: { type: "boolean" },
+    current: { type: "boolean" },
+    depth: { type: "integer", minimum: 0, maximum: 2 },
+  },
+  required: ["commitID", "changeID", "bookmarks", "description", "empty", "immutable", "current", "depth"],
+  additionalProperties: false,
+}
+
 export const Status = Rpc.define({
   id: "jello.jj.status",
   methods: {
+    diff: {
+      input: {
+        type: "object",
+        properties: {
+          directory: { type: "string" },
+          commitID: { type: "string", minLength: 40, maxLength: 64 },
+        },
+        required: ["directory", "commitID"],
+        additionalProperties: false,
+      },
+      output: {
+        type: "object",
+        properties: { patch: { type: "string" }, revision: revisionSchema },
+        required: ["patch", "revision"],
+        additionalProperties: false,
+      },
+    },
     commit: {
       input: {
         type: "object",
@@ -40,20 +73,7 @@ export const Status = Rpc.define({
           },
           revisions: {
             type: "array",
-            items: {
-              type: "object",
-              properties: {
-                changeID: { type: "string" },
-                bookmarks: { type: "array", items: { type: "string" } },
-                description: { type: "string" },
-                empty: { type: "boolean" },
-                immutable: { type: "boolean" },
-                current: { type: "boolean" },
-                depth: { type: "integer", minimum: 0, maximum: 2 },
-              },
-              required: ["changeID", "bookmarks", "description", "empty", "immutable", "current", "depth"],
-              additionalProperties: false,
-            },
+            items: revisionSchema,
           },
         },
         required: ["text", "revisions", "lines"],

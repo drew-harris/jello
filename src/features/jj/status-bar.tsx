@@ -4,10 +4,11 @@ import { Status } from "./rpc"
 import type { definition } from "../../gui/definition"
 import { summarizeStatus } from "./status-summary"
 import type { Overview, Revision } from "./overview"
+import { diffTabID } from "./diff/tab"
+import { errorMessage } from "./errors"
 
-function RevisionLabel(props: { revision: Revision }) {
-  return (
-    <span class="jello-jj-revision" classList={{ "jello-jj-parent": !props.revision.current, "jello-jj-current": props.revision.current }}>
+function RevisionLabel(props: { revision: Revision; open(): void }) {
+  const content = () => <>
       <span class="jello-jj-revision-label">{["Current", "Parent", "Earlier"][props.revision.depth]}</span>
       <span class="jello-jj-change-id">{props.revision.changeID}</span>
       <Show when={props.revision.immutable}>
@@ -21,8 +22,13 @@ function RevisionLabel(props: { revision: Revision }) {
       </Show>
       <Show when={props.revision.empty}><span class="jello-jj-empty" title="Empty revision">○</span></Show>
       <span class="jello-jj-description" title={props.revision.description || "No description"}>{props.revision.description || "No description"}</span>
-    </span>
-  )
+  </>
+  return <Show when={!props.revision.current} fallback={<span class="jello-jj-revision">{content()}</span>}>
+    <button type="button" class="jello-jj-revision jello-jj-parent jello-jj-revision-link" onClick={props.open}
+      aria-label={`View diff for ${props.revision.changeID}: ${props.revision.description || "No description"}`}>
+      {content()}
+    </button>
+  </Show>
 }
 
 export function StatusBar(props: { readonly revision: number }) {
@@ -44,7 +50,7 @@ export function StatusBar(props: { readonly revision: number }) {
       } catch (error) {
         return {
           directory, server,
-          text: error instanceof Error ? error.message : String(error),
+          text: errorMessage(error),
           summary: "jj · status unavailable",
           revisions: [] as Revision[],
           lines: { modified: 0, added: 0, deleted: 0 },
@@ -96,7 +102,13 @@ export function StatusBar(props: { readonly revision: number }) {
                 </svg>
               </Show>
               <For each={current()?.revisions.filter((revision) => revision.depth === depth)}>
-                {(revision) => <RevisionLabel revision={revision} />}
+                {(revision) => <RevisionLabel revision={revision} open={() => {
+                  const session = ctx.sessions.current()
+                  if (!session) return
+                  const directory = current()?.directory
+                  if (!directory) return
+                  ctx.layout.open(`${ctx.id}:${diffTabID({ directory, commitID: revision.commitID })}`, session, { tab: "select" })
+                }} />}
               </For>
             </>}
           </For>

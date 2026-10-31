@@ -1,5 +1,6 @@
 import { createSignal, Show } from "solid-js"
 import { usePlugin } from "@opencode/plugin/gui"
+import { errorMessage } from "./errors"
 
 export function CommitDialog(props: {
   directory: string
@@ -22,7 +23,7 @@ export function CommitDialog(props: {
       props.close()
       ctx.toast.show({ variant: "success", title: "Committed; new working copy created" })
     } catch (error) {
-      setError(error instanceof Error ? error.message : String(error))
+      setError(errorMessage(error))
     } finally {
       setBusy(false)
     }

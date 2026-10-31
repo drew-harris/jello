@@ -1,0 +1,41 @@
+.jello-jj-diff {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  font-size: 12px;
+  --jj-diff-add: #427b25;
+  --jj-diff-del: #bd3434;
+}
+.jello-jj-diff[data-mode="dark"] { --jj-diff-add: #b6df70; --jj-diff-del: #f08080; }
+.jello-jj-diff-heading { display: flex; justify-content: space-between; align-items: start; gap: 12px; padding: 16px; }
+.jello-jj-diff-heading > div { min-width: 0; }
+.jello-jj-diff-heading h2 { margin: 0 0 6px; font-size: 15px; font-weight: 600; }
+.jello-jj-diff-heading h2 span { opacity: 0.6; margin-left: 6px; }
+.jello-jj-diff-heading p { margin: 0 0 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jello-jj-diff-heading small { opacity: 0.5; }
+.jello-jj-diff-toolbar { display: flex; align-items: center; gap: 12px; padding: 8px 16px; border-block: 1px solid color-mix(in srgb, currentColor 12%, transparent); }
+.jello-jj-diff-toolbar > span { margin-right: auto; opacity: 0.6; }
+.jello-jj-diff-toolbar label { display: flex; align-items: center; gap: 5px; }
+.jello-jj-diff-layout { display: flex; gap: 2px; padding: 2px; border-radius: 6px; background: color-mix(in srgb, currentColor 5%, transparent); }
+.jello-jj-diff button { font: inherit; color: inherit; cursor: pointer; }
+.jello-jj-diff-layout button { border: 0; background: transparent; padding: 3px 7px; border-radius: 4px; opacity: 0.6; }
+.jello-jj-diff-layout button[aria-pressed="true"] { background: color-mix(in srgb, currentColor 12%, transparent); opacity: 1; }
+.jello-jj-diff-body { display: flex; flex: 1; min-height: 0; }
+.jello-jj-diff-files { width: 220px; min-width: 140px; max-width: 35%; overflow: auto; border-right: 1px solid color-mix(in srgb, currentColor 12%, transparent); padding: 8px; }
+.jello-jj-diff-files input { box-sizing: border-box; width: 100%; font: inherit; color: inherit; background: transparent; border: 1px solid color-mix(in srgb, currentColor 15%, transparent); border-radius: 5px; padding: 6px 8px; margin-bottom: 8px; }
+.jello-jj-diff-files button { display: flex; align-items: center; gap: 6px; width: 100%; padding: 7px 6px; border: 0; border-radius: 5px; background: transparent; text-align: left; }
+.jello-jj-diff-files button:hover { background: color-mix(in srgb, currentColor 5%, transparent); }
+.jello-jj-diff-files button.is-selected { background: color-mix(in srgb, currentColor 10%, transparent); }
+.jello-jj-diff-file-kind { opacity: 0.5; font-size: 10px; }
+.jello-jj-diff-file-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jello-jj-diff-added { color: var(--jj-diff-add); }
+.jello-jj-diff-deleted { color: var(--jj-diff-del); }
+.jello-jj-diff-content { flex: 1; min-width: 0; overflow: auto; }
+.jello-jj-diff-renderer { --diffs-font-size: 12px; --diffs-line-height: 20px; min-height: 100%; }
+.jello-jj-diff-empty { padding: 24px; line-height: 1.6; opacity: 0.7; overflow-wrap: anywhere; }
+@media (max-width: 700px) {
+  .jello-jj-diff-body { flex-direction: column; }
+  .jello-jj-diff-files { width: auto; max-width: none; max-height: 140px; flex-shrink: 0; border-right: 0; border-bottom: 1px solid color-mix(in srgb, currentColor 12%, transparent); }
+}

@@ -4,9 +4,9 @@ import { parseRevisions, type Revision } from "./overview"
 
 test("parses current and parent revisions with safely escaped metadata", () => {
   const revisions: Revision[] = [
-    { changeID: "abc", bookmarks: ["feature/ui"], description: 'Fix "quoted" text → done', empty: false, immutable: false, current: true, depth: 0 },
-    { changeID: "xyz", bookmarks: ["main"], description: "", empty: true, immutable: true, current: false, depth: 1 },
-    { changeID: "uvw", bookmarks: [], description: "Earlier change", empty: false, immutable: true, current: false, depth: 2 },
+    { commitID: "a".repeat(40), changeID: "abc", bookmarks: ["feature/ui"], description: 'Fix "quoted" text → done', empty: false, immutable: false, current: true, depth: 0 },
+    { commitID: "b".repeat(40), changeID: "xyz", bookmarks: ["main"], description: "", empty: true, immutable: true, current: false, depth: 1 },
+    { commitID: "c".repeat(40), changeID: "uvw", bookmarks: [], description: "Earlier change", empty: false, immutable: true, current: false, depth: 2 },
   ]
   assert.deepEqual(parseRevisions(revisions.map((revision) => JSON.stringify(revision)).join("\n") + "\n"), revisions)
 })
