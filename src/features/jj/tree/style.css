@@ -7,6 +7,7 @@
   --tree-hover: color-mix(in srgb, currentColor 3%, transparent);
   --tree-selected: color-mix(in srgb, var(--tree-accent) 9%, var(--tree-bg));
   --tree-warning: #a45013;
+  --tree-empty: #427b25;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -23,6 +24,7 @@
   --tree-fg: #ddd;
   --tree-accent: #c4a1f5;
   --tree-warning: #f5b66c;
+  --tree-empty: #b6df70;
   color-scheme: dark;
 }
 .jello-jj-tree button { color: inherit; font: inherit; cursor: pointer; }
@@ -90,7 +92,18 @@
 .jello-jj-tree-age { margin-left: auto; padding-left: 4px; color: var(--tree-muted); font-size: 11px; flex-shrink: 0; }
 .jello-jj-tree-subject { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
 .jello-jj-tree-subject.is-placeholder { color: var(--tree-muted); font-style: italic; }
-.jello-jj-tree-empty-tag { margin-left: 7px; font-size: 10px; font-style: normal; color: var(--tree-muted); }
+.jello-jj-tree-empty-tag {
+  flex-shrink: 0;
+  padding: 0 5px;
+  border: 1px solid color-mix(in srgb, var(--tree-empty) 30%, transparent);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--tree-empty) 12%, transparent);
+  color: var(--tree-empty);
+  font-size: 10px;
+  font-weight: 600;
+  font-style: normal;
+  line-height: 14px;
+}
 .jello-jj-tree-boundary { margin-left: 8px; font-weight: 600; color: var(--tree-muted); }
 .jello-jj-tree-tail { display: flex; justify-content: center; padding: 12px 14px; color: var(--tree-muted); font-size: 11px; }
 .jello-jj-tree-tail button, .jello-jj-tree-empty button { border: 1px solid var(--tree-border); border-radius: 5px; padding: 5px 10px; background: transparent; }
