@@ -68,7 +68,7 @@ export const setupJJ: Plugin.Setup<typeof definition> = (ctx) => {
       icon: "extensions",
     },
     list: (input) => input.open.includes("jj") ? [tab] : [],
-    render: (props) => <PanelView session={props.session} revision={revision()} />,
+    render: (props) => <PanelView session={props.session} revision={revision()} onChanged={() => setRevision((value) => value + 1)} />,
   })
   ctx.add(Command, (): Command => ({
     id: "jj.open",

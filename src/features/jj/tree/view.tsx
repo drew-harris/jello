@@ -6,6 +6,7 @@ import { diffTabID } from "../diff/tab"
 import { revisionAge } from "../diff/time"
 import { edgePath, laneX, layoutHistory, ROW_HEIGHT } from "./layout"
 import { changeIDLabel, type TreeCommit, type TreeHistory } from "./model"
+import { ChangeContextMenu } from "./context-menu"
 
 function ChangeID(props: { commit: TreeCommit }) {
   const label = () => changeIDLabel(props.commit)
@@ -14,11 +15,13 @@ function ChangeID(props: { commit: TreeCommit }) {
   </span>
 }
 
-export function TreeView(props: { session: MountedSession; revision: number }) {
+export function TreeView(props: { session: MountedSession; revision: number; onChanged(): void }) {
   const ctx = usePlugin()
   const [limit, setLimit] = createSignal(100)
   const [selection, setSelection] = createSignal<{ commitID: string; changeID: string }>()
   const [notice, setNotice] = createSignal("")
+  const [abandoning, setAbandoning] = createSignal(false)
+  const [contextMenu, setContextMenu] = createSignal<{ x: number; y: number; commit: TreeCommit; trigger: HTMLButtonElement }>()
   const buttons = new Map<string, HTMLButtonElement>()
   const [history, { refetch }] = createResource(
     () => ({ client: props.session.server.client, directory: props.session.directory, limit: limit(), revision: props.revision }),
@@ -44,7 +47,7 @@ export function TreeView(props: { session: MountedSession; revision: number }) {
   const rowCenter = (index: number) => index * ROW_HEIGHT + ROW_HEIGHT / 2
   const boundaryY = (index: number) => (index + 1) * ROW_HEIGHT - 5
   const root = (id: string) => /^0+$/.test(id)
-  const refresh = () => { if (!history.loading) void refetch() }
+  const refresh = () => { if (!history.loading && !abandoning()) void refetch() }
   const onFocus = () => { if (!document.hidden) refresh() }
   window.addEventListener("focus", onFocus)
   onCleanup(() => window.removeEventListener("focus", onFocus))
@@ -66,6 +69,30 @@ export function TreeView(props: { session: MountedSession; revision: number }) {
     try { await ctx.system.copy(value); setNotice("Copied to clipboard") }
     catch (error) { setNotice(errorMessage(error)) }
   }
+  const closeMenu = (restoreFocus = false) => {
+    const trigger = contextMenu()?.trigger
+    setContextMenu(undefined)
+    if (restoreFocus && trigger?.isConnected) trigger.focus({ preventScroll: true })
+  }
+  const abandonChange = async () => {
+    const target = contextMenu()?.commit
+    if (!target || target.immutable || root(target.commitID) || abandoning()) return
+    const directory = props.session.directory
+    const client = props.session.server.client
+    setAbandoning(true)
+    closeMenu(true)
+    const progress = ctx.toast.show({ variant: "loading", title: `Abandoning ${target.changeID.slice(0, 8)}…`, persistent: true })
+    try {
+      await client.rpc(Status).abandon({ directory, commitID: target.commitID })
+      props.onChanged()
+      ctx.toast.show({ variant: "success", title: "Change abandoned" })
+    } catch (error) {
+      ctx.toast.show({ variant: "error", title: "Could not abandon change", description: errorMessage(error) })
+    } finally {
+      progress.dismiss()
+      setAbandoning(false)
+    }
+  }
 
   return <>
     <header class="jello-jj-tree-toolbar">
@@ -74,7 +101,7 @@ export function TreeView(props: { session: MountedSession; revision: number }) {
         <span>Revision history</span>
       </div>
       <button type="button" class="jello-jj-tree-tool" title="Jump to working copy" aria-label="Jump to working copy" disabled={!commits().some((commit) => commit.current)} onClick={jump}>@</button>
-      <button type="button" class="jello-jj-tree-tool" title="Refresh history" aria-label="Refresh history" disabled={history.loading} onClick={refresh}>
+      <button type="button" class="jello-jj-tree-tool" title="Refresh history" aria-label="Refresh history" disabled={history.loading || abandoning()} onClick={refresh}>
         <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
           <path d="M16 8a6 6 0 1 0 0 5M16 3v5h-5" />
         </svg>
@@ -117,11 +144,29 @@ export function TreeView(props: { session: MountedSession; revision: number }) {
                 }} classList={{ "is-selected": selected()?.commitID === row.commit.commitID, "is-working": row.commit.current }}
                   tabIndex={selected()?.commitID === row.commit.commitID ? 0 : -1}
                   aria-pressed={selected()?.commitID === row.commit.commitID}
+                  aria-haspopup="menu"
+                  aria-expanded={contextMenu()?.commit.commitID === row.commit.commitID}
                   aria-current={row.commit.current ? "true" : undefined}
                   aria-label={`${row.commit.current ? "Working copy, " : ""}${row.commit.changeID}, ${root(row.commit.commitID) ? "Root" : row.commit.description.trim() || "No description"}${row.missingParents.length ? ", some ancestry not shown" : ""}`}
                   onClick={() => { setSelection({ commitID: row.commit.commitID, changeID: row.commit.changeID }); setNotice("") }}
                   onDblClick={openDiff}
+                  onContextMenu={(event) => {
+                    event.preventDefault()
+                    setSelection({ commitID: row.commit.commitID, changeID: row.commit.changeID })
+                    const bounds = event.currentTarget.getBoundingClientRect()
+                    setContextMenu({
+                      x: event.clientX || bounds.left + gutter(), y: event.clientY || bounds.top + ROW_HEIGHT,
+                      commit: row.commit, trigger: event.currentTarget,
+                    })
+                  }}
                   onKeyDown={(event) => {
+                    if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
+                      event.preventDefault()
+                      setSelection({ commitID: row.commit.commitID, changeID: row.commit.changeID })
+                      const bounds = event.currentTarget.getBoundingClientRect()
+                      setContextMenu({ x: bounds.left + gutter(), y: bounds.bottom, commit: row.commit, trigger: event.currentTarget })
+                      return
+                    }
                     const target = event.key === "ArrowDown" ? index() + 1 : event.key === "ArrowUp" ? index() - 1 : event.key === "Home" ? 0 : event.key === "End" ? commits().length - 1 : undefined
                     if (target !== undefined) { event.preventDefault(); choose(Math.max(0, Math.min(commits().length - 1, target)), true) }
                     if (event.key === "Enter") { event.preventDefault(); openDiff() }
@@ -171,5 +216,8 @@ export function TreeView(props: { session: MountedSession; revision: number }) {
       </aside>}</Show>
     </Show>
     <div class="jello-jj-tree-footnote"><span>{commits().length} revisions</span><span>↑ ↓ navigate · Enter opens diff</span></div>
+    <Show keyed when={contextMenu()}>{(menu) => <ChangeContextMenu x={menu.x} y={menu.y}
+      disabled={menu.commit.immutable || root(menu.commit.commitID) || abandoning()}
+      close={closeMenu} abandon={() => void abandonChange()} />}</Show>
   </>
 }

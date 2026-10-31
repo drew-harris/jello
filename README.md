@@ -18,6 +18,11 @@ open its diff. Use ↑/↓ to navigate, Enter or double-click to open a diff, an
 to jump to the working copy. Refresh runs on window focus, reopening the panel,
 and after committing; the toolbar also has a manual refresh action.
 
+Right-click a change and choose **Abandon** to run `jj abandon` on that exact
+commit. Immutable changes have the action disabled. JJ rebases descendants onto
+the abandoned commit's parents; abandoning the working copy starts a new empty
+change. The tree and status bar refresh after success, and errors appear as toasts.
+
 A compact, read-only bottom toolbar shows cards for the current revision, parents,
 and grandparents:
 purple change IDs, blue bookmarks and lock icons for immutable revisions, lime empty markers

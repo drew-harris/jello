@@ -5,9 +5,15 @@ import { commit } from "./commit.ts"
 import { readRevisionDiff } from "./diff/server.ts"
 import { readChangedFiles } from "./changed-files.ts"
 import { readTree } from "./tree/server.ts"
+import { abandon } from "./tree/abandon.ts"
 
 export async function setupJJ(ctx: Plugin.Context) {
   await ctx.rpc.register(Status, {
+    abandon: async (input, context) => {
+      const { directory, commitID } = input as { directory: string; commitID: string }
+      await abandon(directory, commitID, context.signal)
+      return { abandoned: true }
+    },
     tree: async (input, context) => {
       const { directory, limit } = input as { directory: string; limit: number }
       return readTree(directory, limit, context.signal)
