@@ -5,6 +5,12 @@ import { Plugin, Store } from "@opencode/plugin/gui"
 // Add `os: ["macos", "linux"]` to limit the plugin to some operating systems.
 export const definition = Plugin.define({
   stores: {
+    jjTree: Store.session(Schema.Struct({
+      directory: Schema.String,
+      commitID: Schema.String,
+      changeID: Schema.String,
+      limit: Schema.Number,
+    }), { directory: "", commitID: "", changeID: "", limit: 100 }),
     prefs: Store.global(Schema.Struct({ greeting: Schema.String, showStatus: Schema.Boolean }), {
       greeting: "Hello",
       showStatus: true,

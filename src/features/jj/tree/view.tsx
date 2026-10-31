@@ -8,6 +8,7 @@ import { edgePath, laneX, layoutHistory, ROW_HEIGHT } from "./layout"
 import { changeIDLabel, type TreeCommit, type TreeHistory } from "./model"
 import { ChangeContextMenu } from "./context-menu"
 import { DescribeDialog } from "./describe-dialog"
+import type { definition } from "../../../gui/definition"
 
 function ChangeID(props: { commit: TreeCommit }) {
   const label = () => changeIDLabel(props.commit)
@@ -17,10 +18,27 @@ function ChangeID(props: { commit: TreeCommit }) {
 }
 
 export function TreeView(props: { session: MountedSession; revision: number; onChanged(): void }) {
-  const ctx = usePlugin()
+  const ctx = usePlugin<typeof definition>()
   const ui = ctx.ui
-  const [limit, setLimit] = createSignal(100)
-  const [selection, setSelection] = createSignal<{ commitID: string; changeID: string }>()
+  const state = () => ctx.stores.jjTree(props.session)
+  const saved = () => {
+    const value = state().value
+    return value?.directory === props.session.directory ? value : undefined
+  }
+  const limit = () => saved()?.limit ?? 100
+  const setLimit = (update: (value: number) => number) => state().set({
+    directory: props.session.directory,
+    commitID: saved()?.commitID ?? "",
+    changeID: saved()?.changeID ?? "",
+    limit: update(limit()),
+  })
+  const selection = () => saved()
+  const setSelection = (commit: { commitID: string; changeID: string }) => state().set({
+    directory: props.session.directory,
+    commitID: commit.commitID,
+    changeID: commit.changeID,
+    limit: limit(),
+  })
   const [notice, setNotice] = createSignal("")
   const [abandoning, setAbandoning] = createSignal(false)
   const [contextMenu, setContextMenu] = createSignal<{ x: number; y: number; commit: TreeCommit; trigger: HTMLButtonElement }>()
