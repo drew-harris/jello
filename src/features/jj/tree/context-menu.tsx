@@ -11,6 +11,7 @@ export function ChangeContextMenu(props: {
   close(restoreFocus?: boolean): void
   abandon(): void
   describe(): void
+  setBookmark(): void
 }) {
   const ctx = usePlugin()
   const ui = ctx.ui
@@ -68,6 +69,8 @@ export function ChangeContextMenu(props: {
       <button type="button" role="menuitem" disabled={props.disabled}
         title={props.disabled ? "Immutable changes cannot be described" : "Edit the description of this change"}
         onClick={props.describe}><span aria-hidden="true"><ui.Icon name="edit" size="small" /></span><span class="jello-jj-tree-menu-label">Describe</span></button>
+      <button type="button" role="menuitem" disabled={props.newDisabled} title="Move an existing bookmark here or create a new one"
+        onClick={props.setBookmark}><span aria-hidden="true"><ui.Icon name="branch" size="small" /></span><span class="jello-jj-tree-menu-label">Set bookmark</span></button>
       <button type="button" role="menuitem" disabled={props.disabled} class="is-danger"
         title={props.disabled ? "Immutable changes cannot be abandoned" : "Run jj abandon on this change"}
         onClick={props.abandon}><span aria-hidden="true"><ui.Icon name="circle-ban-sign" size="small" /></span><span class="jello-jj-tree-menu-label">Abandon</span></button>

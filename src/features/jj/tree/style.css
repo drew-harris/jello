@@ -163,3 +163,12 @@
 .jello-jj-tree-context-menu button.is-danger:hover:not(:disabled), .jello-jj-tree-context-menu button.is-danger:focus-visible { background: #bd343414; }
 .jello-jj-tree-context-menu button:disabled { opacity: .4; cursor: default; }
 .jello-jj-tree-description-input { box-sizing: border-box; width: 100%; padding: 8px 10px; border: 1px solid color-mix(in srgb, currentColor 20%, transparent); border-radius: 6px; background: transparent; color: inherit; font: inherit; }
+.jello-jj-bookmark-picker { --bookmark-hover: #00000008; --bookmark-muted: #777; --bookmark-accent: #7952b3; }
+.jello-jj-bookmark-picker[data-mode="dark"] { --bookmark-hover: #ffffff0d; --bookmark-muted: #999; --bookmark-accent: #c4a1f5; }
+.jello-jj-bookmark-picker > input { margin-top: 6px; }
+.jello-jj-bookmark-options { list-style: none; margin: 8px 0 0; padding: 0; max-height: 220px; overflow: auto; overscroll-behavior: contain; }
+.jello-jj-bookmark-options li { display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: 4px; cursor: pointer; font-size: 12px; overflow-wrap: anywhere; }
+.jello-jj-bookmark-options li > span[aria-hidden] { display: flex; flex-shrink: 0; color: var(--bookmark-muted); }
+.jello-jj-bookmark-options li:hover, .jello-jj-bookmark-options li.is-active { background: var(--bookmark-hover); }
+.jello-jj-bookmark-options li.is-active { color: var(--bookmark-accent); }
+.jello-jj-bookmark-picker-hint { margin: 8px 0 0; color: var(--bookmark-muted); font-size: 11px; }

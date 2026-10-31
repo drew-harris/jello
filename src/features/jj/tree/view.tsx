@@ -11,6 +11,7 @@ import { ChangeContextMenu } from "./context-menu"
 import { DescribeDialog } from "./describe-dialog"
 import type { definition } from "../../../gui/definition"
 import { RevisionFiles } from "./files"
+import { BookmarkDialog } from "./bookmark-dialog"
 
 function ChangeID(props: { commit: TreeCommit }) {
   const label = () => changeIDLabel(props.commit)
@@ -161,6 +162,18 @@ export function TreeView(props: { session: MountedSession; revision: number; onC
         props.onChanged()
       }} />)
   }
+  const bookmarkChange = (target: TreeCommit) => {
+    if (mutating()) return
+    const directory = props.session.directory
+    const client = props.session.server.client
+    closeMenu(true)
+    ctx.dialogs.open((dialog) => <BookmarkDialog changeID={target.changeID} close={dialog.close}
+      load={async () => await client.rpc(Status).bookmarks({ directory }) as string[]}
+      save={async (name) => {
+        await client.rpc(Status).setBookmark({ directory, commitID: target.commitID, name })
+        props.onChanged()
+      }} />)
+  }
 
   const createChange = async (commitID?: string) => {
     if (mutating()) return
@@ -307,6 +320,7 @@ export function TreeView(props: { session: MountedSession; revision: number; onC
     <Show keyed when={contextMenu()}>{(menu) => <ChangeContextMenu x={menu.x} y={menu.y}
       disabled={menu.commit.immutable || root(menu.commit.commitID) || mutating()}
       newDisabled={mutating()} newChange={() => void createChange(menu.commit.commitID)}
+      setBookmark={() => bookmarkChange(menu.commit)}
       close={closeMenu} abandon={() => void abandonChange()} describe={() => describeChange(menu.commit)} />}</Show>
   </>
 }

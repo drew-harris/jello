@@ -8,9 +8,19 @@ import { readTree } from "./tree/server.ts"
 import { abandon } from "./tree/abandon.ts"
 import { describe } from "./tree/describe.ts"
 import { newChange } from "./tree/new.ts"
+import { listBookmarks, setBookmark } from "./tree/bookmarks.ts"
 
 export async function setupJJ(ctx: Plugin.Context) {
   await ctx.rpc.register(Status, {
+    bookmarks: async (input, context) => {
+      const { directory } = input as { directory: string }
+      return listBookmarks(directory, context.signal)
+    },
+    setBookmark: async (input, context) => {
+      const { directory, commitID, name } = input as { directory: string; commitID: string; name: string }
+      await setBookmark(directory, commitID, name, context.signal)
+      return { set: true }
+    },
     revisionFiles: async (input, context) => {
       const { directory, commitID } = input as { directory: string; commitID: string }
       return readChangedFiles(directory, context.signal, commitID)

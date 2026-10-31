@@ -24,6 +24,12 @@ commit. Immutable changes have the action disabled. JJ rebases descendants onto
 the abandoned commit's parents; abandoning the working copy starts a new empty
 change. The tree and status bar refresh after success, and errors appear as toasts.
 
+**Set bookmark** opens a searchable bookmark picker. Choose an existing name to
+move it to the clicked commit (including backwards or sideways), or type a new
+name to create it. Use ↑/↓ for suggestions and Enter to save. Bookmark lists are
+cached for 30 seconds and invalidated after setting a bookmark; failures stay in
+the modal, and success refreshes the tree and status bar.
+
 ⌘⇧-click a change, or choose **Describe** from the same menu, to replace a mutable commit's description
 with a single line. The input starts with its current subject; press Enter to save
 or cancel to leave it unchanged. Failures remain visible in the modal.
