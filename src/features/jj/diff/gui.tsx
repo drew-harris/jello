@@ -3,8 +3,10 @@ import type { definition } from "../../../gui/definition"
 import { parseDiffTabID } from "./tab"
 import { DiffView } from "./view"
 import css from "./style.css?inline"
+import { registerDiffThemes } from "./theme"
 
 export const setupDiff: Plugin.Setup<typeof definition> = (ctx) => {
+  registerDiffThemes()
   ctx.add(Style, css)
   const tabs = new Map<string, PanelTab>()
   ctx.add(Panel, {
