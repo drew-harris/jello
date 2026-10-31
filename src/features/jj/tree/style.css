@@ -61,8 +61,8 @@
 .jello-jj-tree-scroll { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
 .jello-jj-tree-history { position: relative; padding-top: 4px; }
 .jello-jj-tree-graph { position: absolute; left: 0; top: 4px; pointer-events: none; z-index: 1; }
-.jello-jj-tree [data-color="0"] { --lane: #9674bd; }
-.jello-jj-tree [data-color="1"] { --lane: #588db4; }
+.jello-jj-tree [data-color="0"] { --lane: #588db4; }
+.jello-jj-tree [data-color="1"] { --lane: #9674bd; }
 .jello-jj-tree [data-color="2"] { --lane: #729b60; }
 .jello-jj-tree [data-color="3"] { --lane: #ba9255; }
 .jello-jj-tree [data-color="4"] { --lane: #b27499; }
@@ -94,7 +94,6 @@
 .jello-jj-tree-meta { display: flex; align-items: center; gap: 7px; min-width: 0; width: 100%; white-space: nowrap; overflow: hidden; }
 .jello-jj-tree-id { font-family: var(--tree-mono), monospace; font-size: 11px; font-weight: 400; color: var(--tree-muted); flex-shrink: 0; }
 .jello-jj-tree-id strong { color: var(--tree-accent); font-weight: 600; }
-.jello-jj-tree-current { font-size: 10px; color: var(--tree-accent); white-space: nowrap; }
 .jello-jj-tree-bookmark { display: inline-flex; align-items: center; gap: 4px; min-width: 0; max-width: 160px; padding: 1px 6px; border: 1px solid color-mix(in srgb, var(--text-interactive-base, #6686ad) 30%, transparent); border-radius: 4px; background: color-mix(in srgb, var(--text-interactive-base, #6686ad) 15%, transparent); color: var(--text-interactive-base, #6686ad); font-size: 11px; font-weight: 600; line-height: 14px; }
 .jello-jj-tree-bookmark > span[aria-hidden] { display: flex; flex-shrink: 0; }
 .jello-jj-tree-bookmark-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

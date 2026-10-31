@@ -423,7 +423,6 @@ export function TreeView(props: { session: MountedSession; revision: number; foc
                   }}>
                   <span class="jello-jj-tree-meta">
                     <ChangeID commit={row.commit} />
-                    <Show when={row.commit.current}><span class="jello-jj-tree-current">@ working copy</span></Show>
                     <For each={row.commit.bookmarks}>{(bookmark) => <span class="jello-jj-tree-bookmark" title={`Bookmark: ${bookmark}`}>
                       <span aria-hidden="true"><ui.Icon name="branch" size="small" /></span>
                       <span class="jello-jj-tree-bookmark-name">{bookmark}</span>
