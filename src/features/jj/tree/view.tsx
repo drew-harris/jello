@@ -36,12 +36,18 @@ export function TreeView(props: { session: MountedSession; revision: number; onC
     limit: update(limit()),
   })
   const selection = () => saved()
-  const setSelection = (commit: { commitID: string; changeID: string }) => state().set({
-    directory: props.session.directory,
-    commitID: commit.commitID,
-    changeID: commit.changeID,
-    limit: limit(),
-  })
+  const setSelection = (commit: { commitID: string; changeID: string }) => {
+    state().set({
+      directory: props.session.directory,
+      commitID: commit.commitID,
+      changeID: commit.changeID,
+      limit: limit(),
+    })
+    const value = expansionState().value
+    if (value?.directory === props.session.directory && value.changes.some((id) => id !== commit.changeID)) {
+      expansionState().set({ directory: props.session.directory, changes: value.changes.filter((id) => id === commit.changeID) })
+    }
+  }
   const [abandoning, setAbandoning] = createSignal(false)
   const [creating, setCreating] = createSignal(false)
   const expansionState = () => ctx.stores.jjTreeExpanded(props.session)
