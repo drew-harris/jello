@@ -1,27 +1,3 @@
-.jello-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 16px;
-}
-
-.jello-panel h2 {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 600;
-}
-
-.jello-panel p {
-  margin: 0;
-  opacity: 0.75;
-}
-
-.jello-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
 .jello-settings {
   display: flex;
   flex-direction: column;

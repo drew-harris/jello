@@ -2,6 +2,23 @@
 
 Jello: an OpenCode Desktop GUI plugin.
 
+## JJ feature
+
+Run `/jj` to open the **JJ** side panel with `jj status` for the current session's
+directory. Run it again or click **Refresh** to update the output. Requires `jj`
+on the OpenCode server's PATH.
+
+A thin, tmux-inspired bottom bar shows the current revision and its parents:
+purple change IDs, blue bookmarks and immutable markers (◆), lime empty markers
+(○), and truncated descriptions. File counts sit on the right, with conflicts
+highlighted. Parent details hide on narrow windows. It refreshes
+every 10 seconds while the window is visible, and on focus. Click it to open the
+full status panel; hover to see the raw output or error.
+
+The **Commit** button opens a message dialog. Confirming runs `jj commit -m`,
+committing all working-copy changes and starting a new empty change. Canceling
+makes no changes; failures remain visible in the dialog.
+
 An [OpenCode Desktop](https://opencode.ai) GUI plugin, built with the experimental
 [GUI plugin SDK](https://opencode.ai/v2/docs/build/plugins/gui) (`@opencode/plugin/gui`).
 
@@ -12,16 +29,32 @@ An [OpenCode Desktop](https://opencode.ai) GUI plugin, built with the experiment
 ```
 src/
 ├── index.ts            Server part: Plugin.define from @opencode/plugin (id "jello")
-├── rpc.ts              RPC contract between the server part and the GUI
+├── rpc.ts              Shared/demo RPC contract
 ├── gui.tsx             ./gui-experimental entry: Plugin.define({ ...definition, setup })
+├── features/
+│   └── jj/             Self-contained JJ feature
+│       ├── server.ts   Server registration
+│       ├── rpc.ts      JJ RPC contract
+│       ├── status.ts   Runs jj status
+│       ├── overview.ts Structured revision metadata and jj log template
+│       ├── overview.test.ts
+│       ├── gui.tsx     JJ panel, /jj command, launcher, and bars
+│       ├── panel.tsx   Full status output
+│       ├── status-bar.tsx
+│       ├── status-summary.ts
+│       ├── status-summary.test.ts
+│       └── style.css
 └── gui/
-    ├── definition.ts   Stores and i18n
-    ├── window.tsx      Window setup: panel, commands, launcher, titlebar pill, settings page
-    ├── panel.tsx       Side panel component
+    ├── definition.ts   Stored state declarations
+    ├── window.tsx      Shared setup and feature composition
     ├── settings.tsx    Settings page component
-    ├── style.css       Styles injected with ctx.add(Style, css)
-    └── i18n/en.ts      English copy
+    └── style.css       Styles injected with ctx.add(Style, css)
 ```
+
+New features belong in their own `src/features/<name>/` directory. Register their
+server and GUI setup functions from `src/index.ts` and `src/gui/window.tsx`.
+Feature IDs and CSS are namespaced so they do not collide with other Jello
+features. UI text is plain English inline; there is no internationalization layer.
 
 ## Develop
 
@@ -39,7 +72,7 @@ Add the plugin's directory to your **global** OpenCode config, `~/.config/openco
 }
 ```
 
-Restart OpenCode Desktop once. After that, every rebuild reloads the plugin's GUI in every window.
+Config changes load automatically; use `/reload` to force a full reload. Every rebuild reloads the plugin's GUI in every window.
 Find it under **Settings > Extensions > Plugins**, run **Jello** commands from the command palette, or open its
 panel from the side panel's **+** menu.
 

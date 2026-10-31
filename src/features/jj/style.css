@@ -1,0 +1,211 @@
+.jello-jj-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  height: 100%;
+  overflow: auto;
+}
+
+.jello-jj-panel h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.jello-jj-panel p {
+  margin: 0;
+  opacity: 0.75;
+}
+
+.jello-jj-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.jello-jj-status {
+  margin: 0;
+  font-family: monospace;
+  font-size: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.jello-jj-status-bar {
+  --jj-purple: #7952b3;
+  --jj-purple-bg: #7952b310;
+  --jj-blue: #2769ad;
+  --jj-green: #427b25;
+  --jj-warning: #ae5612;
+  --jj-yellow: #896b00;
+  --jj-red: #bd3434;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  height: 28px;
+  min-width: 0;
+  padding: 0 12px;
+  border: 0;
+  border-top: 1px solid color-mix(in srgb, currentColor 15%, transparent);
+  background: transparent;
+  color: inherit;
+  font-family: monospace;
+  font-size: 12px;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.jello-jj-status-bar[data-mode="dark"] {
+  --jj-purple: #c4a1f5;
+  --jj-purple-bg: #c4a1f512;
+  --jj-blue: #79b8ff;
+  --jj-green: #b6df70;
+  --jj-warning: #f5b66c;
+  --jj-yellow: #e5c76b;
+  --jj-red: #f08080;
+}
+
+.jello-jj-status-main:hover,
+.jello-jj-status-main:focus-visible {
+  background: color-mix(in srgb, currentColor 6%, transparent);
+}
+
+.jello-jj-status-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.jello-jj-commit {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--jj-green);
+  font: inherit;
+  cursor: pointer;
+}
+
+.jello-jj-commit:hover:not(:disabled) {
+  background: color-mix(in srgb, currentColor 10%, transparent);
+}
+
+.jello-jj-commit:disabled { opacity: 0.4; cursor: default; }
+
+.jello-jj-message-label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.jello-jj-message {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 140px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.jello-jj-status-bar-error {
+  opacity: 0.65;
+}
+
+.jello-jj-brand {
+  flex-shrink: 0;
+  font-weight: 700;
+  opacity: 0.45;
+}
+
+.jello-jj-revision {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.jello-jj-revision-label {
+  opacity: 0.4;
+  font-size: 11px;
+}
+
+.jello-jj-change-id {
+  color: var(--jj-purple);
+  background: var(--jj-purple-bg);
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-weight: 700;
+}
+
+.jello-jj-bookmarks,
+.jello-jj-immutable {
+  color: var(--jj-blue);
+}
+
+.jello-jj-bookmarks {
+  max-width: 12ch;
+  font-weight: 600;
+}
+
+.jello-jj-description {
+  max-width: 22ch;
+  opacity: 0.85;
+}
+
+.jello-jj-description,
+.jello-jj-bookmarks {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jello-jj-empty,
+.jello-jj-parent-arrow {
+  color: var(--jj-green);
+  flex-shrink: 0;
+}
+
+.jello-jj-parent-arrow { font-size: 15px; }
+
+.jello-jj-file-counts {
+  margin-left: auto;
+  padding-left: 12px;
+  border-left: 1px solid color-mix(in srgb, currentColor 15%, transparent);
+  color: var(--jj-green);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.jello-jj-conflicts { color: var(--jj-warning); }
+.jello-jj-modified { color: var(--jj-yellow); }
+.jello-jj-added { color: var(--jj-green); }
+.jello-jj-deleted { color: var(--jj-red); }
+.jello-jj-count-separator { color: inherit; opacity: 0.4; }
+
+@media (max-width: 700px) {
+  .jello-jj-parent,
+  .jello-jj-parent-arrow { display: none; }
+  .jello-jj-status-bar { gap: 8px; }
+}

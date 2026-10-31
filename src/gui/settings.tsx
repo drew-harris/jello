@@ -10,7 +10,7 @@ export function SettingsView(_props: { readonly highlight?: string }) {
   return (
     <div class="jello-settings">
       <ui.TextInput
-        label={ctx.t("settings.greeting")}
+        label="Greeting"
         value={prefs.value.greeting}
         onInput={(greeting) =>
           prefs.update((draft) => {
@@ -19,8 +19,8 @@ export function SettingsView(_props: { readonly highlight?: string }) {
         }
       />
       <ui.Switch
-        label={ctx.t("settings.status")}
-        description={ctx.t("settings.status.description")}
+        label="Show JJ titlebar item"
+        description="Shows a JJ shortcut in the window titlebar or tabs footer."
         checked={prefs.value.showStatus}
         onChange={(showStatus) =>
           prefs.update((draft) => {

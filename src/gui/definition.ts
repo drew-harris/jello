@@ -1,8 +1,7 @@
 import { Schema } from "effect"
 import { Plugin, Store } from "@opencode/plugin/gui"
-import { en } from "./i18n/en"
 
-// Declarations the host reads before either setup runs: stored window state and copy.
+// Declarations the host reads before either setup runs: stored window state.
 // Add `os: ["macos", "linux"]` to limit the plugin to some operating systems.
 export const definition = Plugin.define({
   stores: {
@@ -11,5 +10,4 @@ export const definition = Plugin.define({
       showStatus: true,
     }),
   },
-  i18n: { en },
 })
