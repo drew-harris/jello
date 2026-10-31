@@ -24,6 +24,10 @@ commit. Immutable changes have the action disabled. JJ rebases descendants onto
 the abandoned commit's parents; abandoning the working copy starts a new empty
 change. The tree and status bar refresh after success, and errors appear as toasts.
 
+Choose **Describe** from the same menu to replace a mutable commit's description
+with a single line. The input starts with its current subject; press Enter to save
+or cancel to leave it unchanged. Failures remain visible in the modal.
+
 A compact, read-only bottom toolbar shows cards for the current revision, parents,
 and grandparents:
 purple change IDs, blue bookmarks and lock icons for immutable revisions, lime empty markers

@@ -8,10 +8,12 @@ export function ChangeContextMenu(props: {
   disabled: boolean
   close(restoreFocus?: boolean): void
   abandon(): void
+  describe(): void
 }) {
   const ctx = usePlugin()
   let menu!: HTMLDivElement
   let item!: HTMLButtonElement
+  let abandonItem!: HTMLButtonElement
   onMount(() => {
     const bounds = menu.getBoundingClientRect()
     menu.style.left = `${Math.max(8, Math.min(props.x, window.innerWidth - bounds.width - 8))}px`
@@ -48,10 +50,17 @@ export function ChangeContextMenu(props: {
         }
         if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
           event.preventDefault()
-          if (!props.disabled) item.focus()
+          if (!props.disabled) {
+            if (event.key === "Home") item.focus()
+            else if (event.key === "End") abandonItem.focus()
+            else (document.activeElement === item ? abandonItem : item).focus()
+          }
         }
       }}>
       <button ref={item} type="button" role="menuitem" disabled={props.disabled}
+        title={props.disabled ? "Immutable changes cannot be described" : "Edit the description of this change"}
+        onClick={props.describe}>Describe</button>
+      <button ref={abandonItem} type="button" role="menuitem" disabled={props.disabled} class="is-danger"
         title={props.disabled ? "Immutable changes cannot be abandoned" : "Run jj abandon on this change"}
         onClick={props.abandon}>Abandon</button>
     </div>

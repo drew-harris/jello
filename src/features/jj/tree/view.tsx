@@ -7,6 +7,7 @@ import { revisionAge } from "../diff/time"
 import { edgePath, laneX, layoutHistory, ROW_HEIGHT } from "./layout"
 import { changeIDLabel, type TreeCommit, type TreeHistory } from "./model"
 import { ChangeContextMenu } from "./context-menu"
+import { DescribeDialog } from "./describe-dialog"
 
 function ChangeID(props: { commit: TreeCommit }) {
   const label = () => changeIDLabel(props.commit)
@@ -98,6 +99,18 @@ export function TreeView(props: { session: MountedSession; revision: number; onC
       progress.dismiss()
       setAbandoning(false)
     }
+  }
+  const describeChange = () => {
+    const target = contextMenu()?.commit
+    if (!target || target.immutable || root(target.commitID) || abandoning()) return
+    const directory = props.session.directory
+    const client = props.session.server.client
+    closeMenu(true)
+    ctx.dialogs.open((dialog) => <DescribeDialog changeID={target.changeID} description={target.description}
+      close={dialog.close} describe={async (message) => {
+        await client.rpc(Status).describe({ directory, commitID: target.commitID, message })
+        props.onChanged()
+      }} />)
   }
 
   return <>
@@ -224,6 +237,6 @@ export function TreeView(props: { session: MountedSession; revision: number; onC
     <div class="jello-jj-tree-footnote"><span>{commits().length} revisions</span><span>↑ ↓ navigate · Enter opens diff</span></div>
     <Show keyed when={contextMenu()}>{(menu) => <ChangeContextMenu x={menu.x} y={menu.y}
       disabled={menu.commit.immutable || root(menu.commit.commitID) || abandoning()}
-      close={closeMenu} abandon={() => void abandonChange()} />}</Show>
+      close={closeMenu} abandon={() => void abandonChange()} describe={describeChange} />}</Show>
   </>
 }
