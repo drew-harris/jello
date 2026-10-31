@@ -88,7 +88,26 @@ export function TreeView(props: { session: MountedSession; revision: number; foc
   const [graphState, setGraph] = createStore<ReturnType<typeof layoutHistory>>({ rows: [], lanes: 1 })
   // Retain keyed row/component identities when polling returns fresh objects.
   // This keeps expanded resources mounted and their existing file lists visible.
-  createEffect(() => setGraph(reconcile(layoutHistory(commits()), { key: "id" })))
+  createEffect(() => {
+    const active = document.activeElement
+    const hadRowFocus = active instanceof HTMLElement && panel?.contains(active)
+      && active.matches(".jello-jj-tree-row")
+    setGraph(reconcile(layoutHistory(commits()), { key: "id" }))
+    if (!hadRowFocus) return
+    // Abandoning removes the focused button. Restore focus only after Solid has
+    // reconciled the rows, and only if the user hasn't focused something else.
+    const frame = requestAnimationFrame(() => {
+      if (active.isConnected || !panel.isConnected || !panel.getClientRects().length || ctx.dialogs.active()) return
+      if (document.activeElement !== document.body && document.activeElement !== panel) return
+      const target = selected()
+      const button = target && buttons.get(graphRowID(target))
+      if (button?.isConnected) {
+        button.focus({ preventScroll: true })
+        button.scrollIntoView({ block: "nearest" })
+      } else panel.focus({ preventScroll: true })
+    })
+    onCleanup(() => cancelAnimationFrame(frame))
+  })
   const graph = () => graphState
   const selected = () => {
     const previous = selection()
