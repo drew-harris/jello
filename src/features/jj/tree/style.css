@@ -92,17 +92,13 @@
 .jello-jj-tree-age { margin-left: auto; padding-left: 4px; color: var(--tree-muted); font-size: 11px; flex-shrink: 0; }
 .jello-jj-tree-subject { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
 .jello-jj-tree-subject.is-placeholder { color: var(--tree-muted); font-style: italic; }
-.jello-jj-tree-empty-tag {
-  flex-shrink: 0;
-  padding: 0 5px;
-  border: 1px solid color-mix(in srgb, var(--tree-empty) 30%, transparent);
-  border-radius: 4px;
-  background: color-mix(in srgb, var(--tree-empty) 12%, transparent);
+.jello-jj-tree-empty-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 5px;
   color: var(--tree-empty);
-  font-size: 10px;
-  font-weight: 600;
-  font-style: normal;
-  line-height: 14px;
+  vertical-align: -2px;
 }
 .jello-jj-tree-boundary { margin-left: 8px; font-weight: 600; color: var(--tree-muted); }
 .jello-jj-tree-tail { display: flex; justify-content: center; padding: 12px 14px; color: var(--tree-muted); font-size: 11px; }

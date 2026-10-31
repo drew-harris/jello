@@ -18,6 +18,7 @@ function ChangeID(props: { commit: TreeCommit }) {
 
 export function TreeView(props: { session: MountedSession; revision: number; onChanged(): void }) {
   const ctx = usePlugin()
+  const ui = ctx.ui
   const [limit, setLimit] = createSignal(100)
   const [selection, setSelection] = createSignal<{ commitID: string; changeID: string }>()
   const [notice, setNotice] = createSignal("")
@@ -192,9 +193,6 @@ export function TreeView(props: { session: MountedSession; revision: number; onC
                   }}>
                   <span class="jello-jj-tree-meta">
                     <ChangeID commit={row.commit} />
-                    <Show when={row.commit.empty && !root(row.commit.commitID)}>
-                      <span class="jello-jj-tree-empty-tag" title="This change contains no file changes">Empty</span>
-                    </Show>
                     <Show when={row.commit.current}><span class="jello-jj-tree-current">@ working copy</span></Show>
                     <For each={row.commit.bookmarks}>{(bookmark) => <span class="jello-jj-tree-bookmark" title={bookmark}>{bookmark}</span>}</For>
                     <Show when={!root(row.commit.commitID)}>
@@ -206,6 +204,9 @@ export function TreeView(props: { session: MountedSession; revision: number; onC
                   </span>
                   <span class="jello-jj-tree-subject" title={row.commit.description.trim() || (root(row.commit.commitID) ? "Root" : "No description")}
                     classList={{ "is-placeholder": !row.commit.description.trim() && !root(row.commit.commitID) }}>
+                    <Show when={row.commit.empty && !root(row.commit.commitID)}>
+                      <span class="jello-jj-tree-empty-icon" title="Empty change — no file changes" aria-hidden="true"><ui.Icon name="cube" size="small" /></span>
+                    </Show>
                     {root(row.commit.commitID) ? "Root" : row.commit.description.split("\n")[0] || "No description"}
                     <Show when={row.missingParents.length}><span class="jello-jj-tree-boundary" title="Parent revisions are outside this log view. Dashed edges end here; no ancestry is inferred.">···</span></Show>
                   </span>
