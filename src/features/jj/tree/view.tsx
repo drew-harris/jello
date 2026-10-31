@@ -280,6 +280,7 @@ export function TreeView(props: { session: MountedSession; revision: number; foc
     else if (action === "bookmark") bookmarkChange(target)
     else if (action === "abandon") void abandonChange(target, true)
     else if (action === "diff") openDiff()
+    else if (action === "edit") void editChange(target)
     else if (action === "describe") describeChange(target)
     else if (action === "squash") squashChange(target)
     else if (!expanded().has(target.changeID)) {
@@ -297,7 +298,7 @@ export function TreeView(props: { session: MountedSession; revision: number; foc
     <header class="jello-jj-tree-toolbar">
       <Show when={focused() && !ctx.dialogs.active() && !confirming() && !contextMenu()}>
         <span class="jello-jj-tree-keyboard" role="img" aria-label="Tree keyboard shortcuts active"
-          title="Keyboard shortcuts active: j/k select, n new change, Shift+B set bookmark, l expand files, a abandon (confirmation), d diff, Enter describe, Shift+S squash below">
+          title="Keyboard shortcuts active: j/k select, n new change, Shift+B set bookmark, l expand files, a abandon (confirmation), d diff, e edit, Enter describe, Shift+S squash below">
           <span aria-hidden="true"><ui.Icon name="keyboard" size="small" /></span>
         </span>
       </Show>

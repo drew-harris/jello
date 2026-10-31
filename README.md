@@ -61,7 +61,8 @@ returning to the panel.
 While keyboard focus is inside the tree, a keyboard icon appears to the left of
 the repository header. Use **j/k** to select down/up, **n** to create a new change
 on the selection, **Shift+B** to set a bookmark, **l** to expand its files, and
-**a** to abandon it after confirmation, **d** to open its diff, and **Enter** to
+**a** to abandon it after confirmation, **d** to open its diff, **e** to edit it
+(switch the working copy with `jj edit`), and **Enter** to
 open Describe. Selecting another change collapses other
 expanded lists. These shortcuts do not run in text fields, dialogs, or menus;
 immutable changes cannot be abandoned.
