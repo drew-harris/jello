@@ -8,6 +8,7 @@ import { errorMessage } from "../errors"
 import { buildFileTree, type FileTreeNode } from "./tree"
 import { DiffIcon, FileIcon } from "./icons"
 import { diffThemeCSS } from "./theme"
+import { revisionAge } from "./time"
 
 const fileKind = (file: FileDiffMetadata) => ({ new: "A", deleted: "D", "rename-pure": "R", "rename-changed": "R", change: "M" })[file.type]
 const count = (file: FileDiffMetadata, kind: "additionLines" | "deletionLines") => file.hunks.reduce((total, hunk) => total + hunk[kind], 0)
@@ -83,6 +84,7 @@ export function DiffView(props: { session: MountedSession; tabID: string }) {
 }
 
 function DiffContents(props: { session: MountedSession; tabID: string }) {
+  const ctx = usePlugin()
   const [layout, setLayout] = createSignal<"unified" | "split">("unified")
   const [wrap, setWrap] = createSignal(true)
   const [sidebar, setSidebar] = createSignal(true)
@@ -98,6 +100,9 @@ function DiffContents(props: { session: MountedSession; tabID: string }) {
   }
   const [selected, setSelected] = createSignal(0)
   const [query, setQuery] = createSignal("")
+  const [now, setNow] = createSignal(Date.now())
+  const clock = setInterval(() => setNow(Date.now()), 60_000)
+  onCleanup(() => clearInterval(clock))
   const [result, { refetch }] = createResource(
     () => ({ id: props.tabID, client: props.session.server.client }),
     async ({ id, client }) => {
@@ -123,6 +128,32 @@ function DiffContents(props: { session: MountedSession; tabID: string }) {
   return <div class="jello-jj-diff-stage">
     <Show when={!result.loading} fallback={<div class="jello-jj-diff-empty" role="status">Loading revision diff…</div>}>
       <Show when={!active()?.error} fallback={<div class="jello-jj-diff-empty" role="alert"><p>{active()?.error}</p><button type="button" onClick={() => void refetch()}>Retry</button></div>}>
+        <header class="jello-jj-diff-revision" aria-label="Revision details">
+          <div class="jello-jj-diff-revision-meta">
+            <button type="button" class="jello-jj-diff-change-id" title="Copy change ID" aria-label="Copy change ID"
+              onClick={async () => {
+                const id = active()?.data?.revision.changeID8
+                if (!id) return
+                try {
+                  await ctx.system.copy(id)
+                  ctx.toast.show({ title: "Copied to clipboard", variant: "success", duration: 2000 })
+                } catch (error) {
+                  ctx.toast.show({ title: "Could not copy change ID", description: errorMessage(error), variant: "error" })
+                }
+              }}>
+              <strong>{active()?.data?.revision.changeID8.slice(0, active()?.data?.revision.changeID.length)}</strong>
+              <span>{active()?.data?.revision.changeID8.slice(active()?.data?.revision.changeID.length)}</span>
+            </button>
+            <time dateTime={active()?.data?.revision.timestamp} title={active()?.data?.revision.timestamp}>
+              {revisionAge(active()?.data?.revision.timestamp ?? "", now())}
+            </time>
+            <span class="jello-jj-diff-totals">
+              <span class="jello-jj-diff-added">+{totals().added}</span>
+              <span class="jello-jj-diff-deleted">−{totals().deleted}</span>
+            </span>
+          </div>
+          <div class="jello-jj-diff-commit-message">{active()?.data?.revision.description || "No description"}</div>
+        </header>
         <div class="jello-jj-diff-workspace" ref={workspace} classList={{ "is-resizing": resizing() }}>
           <Show when={sidebar()}>
             <aside class="jello-jj-diff-sidebar" ref={sidebarElement} style={{ width: `${sidebarWidth()}px` }}>
@@ -130,7 +161,6 @@ function DiffContents(props: { session: MountedSession; tabID: string }) {
                 <button type="button" class="jello-jj-diff-heading-icon" title="Hide file tree" aria-label="Hide file tree"
                   aria-expanded={sidebar()} onClick={() => setSidebar(false)}><DiffIcon name="tree" /></button>
                 <strong>JJ changes</strong><span class="jello-jj-diff-revision-id">{active()?.data?.revision.changeID}</span>
-                <span class="jello-jj-diff-totals"><span class="jello-jj-diff-added">+{totals().added}</span><span class="jello-jj-diff-deleted">−{totals().deleted}</span></span>
               </header>
               <label class="jello-jj-diff-filter"><DiffIcon name="search" />
                 <input type="search" aria-label="Filter changed files" placeholder="Filter files" value={query()} onInput={(event) => setQuery(event.currentTarget.value)} />

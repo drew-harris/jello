@@ -3,6 +3,8 @@ import type { LineChanges } from "./line-changes"
 export interface Revision {
   commitID: string
   changeID: string
+  changeID8: string
+  timestamp: string
   bookmarks: string[]
   description: string
   empty: boolean
@@ -22,6 +24,8 @@ export const revisionTemplate = [
   "\"{\"",
   "'\"commitID\":' ++ json(self.commit_id()) ++ ','",
   "'\"changeID\":' ++ json(self.change_id().shortest().prefix())",
+  "',\"changeID8\":' ++ json(self.change_id().short(8))",
+  "',\"timestamp\":' ++ json(committer.timestamp().format(\"%Y-%m-%dT%H:%M:%S%:z\"))",
   "',\"bookmarks\":' ++ json(bookmarks.map(|b| b.name()))",
   "',\"description\":' ++ json(description.first_line())",
   "',\"empty\":' ++ json(empty)",

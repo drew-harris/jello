@@ -22,14 +22,21 @@
   --jj-diff-del: #e97878;
   --jj-diff-mod: #91a0ff;
 }
-.jello-jj-diff-stage { height: 100%; min-height: 0; }
+.jello-jj-diff-stage { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.jello-jj-diff-revision { flex-shrink: 0; padding: 8px 12px; border-bottom: 1px solid var(--jj-diff-border); }
+.jello-jj-diff-revision-meta { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+.jello-jj-diff-revision-meta > .jello-jj-diff-change-id { color: var(--jj-diff-muted); white-space: nowrap; padding: 0; border: 0; background: transparent; border-radius: 3px; }
+.jello-jj-diff-change-id:hover { background: var(--jj-diff-hover); }
+.jello-jj-diff-change-id strong { color: var(--jj-diff-mod); font-weight: 600; }
+.jello-jj-diff-revision-meta > time { color: var(--jj-diff-muted); }
+.jello-jj-diff-commit-message { max-height: 120px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.5; }
 .jello-jj-diff[data-mode="dark"] { color-scheme: dark; }
 .jello-jj-diff[data-mode="light"] { color-scheme: light; }
 .jello-jj-diff-renderer > diffs-container { color-scheme: inherit; background: var(--jj-diff-bg); }
 .jello-jj-diff button, .jello-jj-diff input { font: inherit; color: inherit; }
 .jello-jj-diff button { cursor: pointer; }
 .jello-jj-diff button:disabled { opacity: 0.3; cursor: default; }
-.jello-jj-diff-workspace { display: flex; height: 100%; min-height: 0; }
+.jello-jj-diff-workspace { display: flex; flex: 1; min-height: 0; }
 .jello-jj-diff-sidebar { box-sizing: border-box; width: 240px; max-width: calc(100% - 160px); min-width: min(160px, 40%); overflow: hidden; display: flex; flex-direction: column; flex-shrink: 0; }
 .jello-jj-diff-resize-handle { position: relative; width: 1px; flex-shrink: 0; background: var(--jj-diff-border); cursor: col-resize; touch-action: none; z-index: 1; }
 .jello-jj-diff-resize-handle::after { content: ""; position: absolute; inset: 0 -3px; }

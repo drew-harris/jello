@@ -5,6 +5,8 @@ const revisionSchema = {
   properties: {
     commitID: { type: "string" },
     changeID: { type: "string" },
+    changeID8: { type: "string" },
+    timestamp: { type: "string" },
     bookmarks: { type: "array", items: { type: "string" } },
     description: { type: "string" },
     empty: { type: "boolean" },
@@ -12,7 +14,7 @@ const revisionSchema = {
     current: { type: "boolean" },
     depth: { type: "integer", minimum: 0, maximum: 2 },
   },
-  required: ["commitID", "changeID", "bookmarks", "description", "empty", "immutable", "current", "depth"],
+  required: ["commitID", "changeID", "changeID8", "timestamp", "bookmarks", "description", "empty", "immutable", "current", "depth"],
   additionalProperties: false,
 }
 
