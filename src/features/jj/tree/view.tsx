@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createResource, createSignal, For, onCleanup, Show } from "solid-js"
+import { createEffect, createMemo, createResource, createSignal, For, on, onCleanup, Show } from "solid-js"
 import { createStore, reconcile } from "solid-js/store"
 import { usePlugin, type MountedSession } from "@opencode/plugin/gui"
 import { Status } from "../rpc"
@@ -12,6 +12,7 @@ import { DescribeDialog } from "./describe-dialog"
 import type { definition } from "../../../gui/definition"
 import { RevisionFiles } from "./files"
 import { BookmarkDialog } from "./bookmark-dialog"
+import { treeShortcut } from "./shortcuts"
 
 function ChangeID(props: { commit: TreeCommit }) {
   const label = () => changeIDLabel(props.commit)
@@ -20,9 +21,12 @@ function ChangeID(props: { commit: TreeCommit }) {
   </span>
 }
 
-export function TreeView(props: { session: MountedSession; revision: number; onChanged(): void }) {
+export function TreeView(props: { session: MountedSession; revision: number; focusRequest: number; onChanged(): void }) {
   const ctx = usePlugin<typeof definition>()
   const ui = ctx.ui
+  let panel!: HTMLDivElement
+  const [focused, setFocused] = createSignal(false)
+  const [confirming, setConfirming] = createSignal(false)
   const state = () => ctx.stores.jjTree(props.session)
   const saved = () => {
     const value = state().value
@@ -123,6 +127,13 @@ export function TreeView(props: { session: MountedSession; revision: number; onC
     button?.scrollIntoView({ block: "nearest" })
   }
   const jump = () => choose(commits().findIndex((commit) => commit.current), true)
+  // Runs after mounting/loading too, and repeats even if the tab was already open.
+  createEffect(on(() => props.focusRequest, (request) => {
+    if (!request) return
+    const target = selected()
+    if (target) choose(commits().findIndex((commit) => commit.commitID === target.commitID), true)
+    else panel.focus({ preventScroll: true })
+  }))
   const openDiff = () => {
     const commit = selected()
     if (!commit || root(commit.commitID)) return
@@ -133,11 +144,24 @@ export function TreeView(props: { session: MountedSession; revision: number; onC
     setContextMenu(undefined)
     if (restoreFocus && trigger?.isConnected) trigger.focus({ preventScroll: true })
   }
-  const abandonChange = async () => {
-    const target = contextMenu()?.commit
+  const abandonChange = async (target = contextMenu()?.commit, confirm = false) => {
     if (!target || target.immutable || root(target.commitID) || mutating()) return
     const directory = props.session.directory
     const client = props.session.server.client
+    if (confirm) {
+      if (confirming()) return
+      setConfirming(true)
+      try {
+        if (!await ctx.dialogs.confirm({
+          title: "Abandon change?",
+          description: `Abandon ${target.changeID.slice(0, 8)} — ${target.description.split("\n")[0] || "No description"}?`,
+          confirm: "Abandon", danger: true,
+        })) return
+      } finally {
+        setConfirming(false)
+      }
+      if (mutating() || props.session.directory !== directory || props.session.server.client !== client) return
+    }
     setAbandoning(true)
     closeMenu(true)
     const progress = ctx.toast.show({ variant: "loading", title: `Abandoning ${target.changeID.slice(0, 8)}…`, persistent: true })
@@ -211,8 +235,43 @@ export function TreeView(props: { session: MountedSession; revision: number; onC
     }
   }
 
-  return <>
+  const onShortcut = (event: KeyboardEvent) => {
+    // Portaled menus/dialogs and editable controls must never drive the tree.
+    if (event.defaultPrevented || !panel.contains(document.activeElement) || ctx.dialogs.active() || confirming() || contextMenu()) return
+    if (!(event.target instanceof Element) || !panel.contains(event.target)
+      || event.target.closest("input, textarea, select, [contenteditable]:not([contenteditable=false]), [role=textbox]")) return
+    const action = treeShortcut(event)
+    const target = selected()
+    if (!action || !target) return
+    event.preventDefault()
+    event.stopPropagation()
+    const index = commits().findIndex((commit) => commit.commitID === target.commitID)
+    if (action === "down" || action === "up") {
+      choose(Math.max(0, Math.min(commits().length - 1, index + (action === "down" ? 1 : -1))), true)
+    } else if (action === "new") void createChange(target.commitID)
+    else if (action === "bookmark") bookmarkChange(target)
+    else if (action === "abandon") void abandonChange(target, true)
+    else if (action === "diff") openDiff()
+    else if (action === "describe") describeChange(target)
+    else if (!expanded().has(target.changeID)) {
+      setSelection(target)
+      toggleFiles(target.changeID)
+    }
+  }
+
+  return <div ref={panel} class="jello-jj-tree-content" tabIndex={-1}
+    onFocusIn={() => setFocused(true)}
+    onFocusOut={(event) => setFocused(event.relatedTarget instanceof Node && panel.contains(event.relatedTarget))}
+    onPointerDown={(event) => {
+      if (event.target instanceof Element && !event.target.closest("button, a, input, textarea, select, [contenteditable]")) panel.focus({ preventScroll: true })
+    }} onKeyDown={onShortcut}>
     <header class="jello-jj-tree-toolbar">
+      <Show when={focused() && !ctx.dialogs.active() && !confirming() && !contextMenu()}>
+        <span class="jello-jj-tree-keyboard" role="img" aria-label="Tree keyboard shortcuts active"
+          title="Keyboard shortcuts active: j/k select, n new change, Shift+B set bookmark, l expand files, a abandon (confirmation), d diff, Enter describe">
+          <span aria-hidden="true"><ui.Icon name="keyboard" size="small" /></span>
+        </span>
+      </Show>
       <div class="jello-jj-tree-heading" title={props.session.directory}>
         <strong>{props.session.directory.split(/[\\/]/).filter(Boolean).at(-1) || props.session.directory}</strong>
         <span>Revision history</span>
@@ -296,7 +355,6 @@ export function TreeView(props: { session: MountedSession; revision: number; onC
                     }
                     const target = event.key === "ArrowDown" ? index() + 1 : event.key === "ArrowUp" ? index() - 1 : event.key === "Home" ? 0 : event.key === "End" ? commits().length - 1 : undefined
                     if (target !== undefined) { event.preventDefault(); choose(Math.max(0, Math.min(commits().length - 1, target)), true) }
-                    if (event.key === "Enter") { event.preventDefault(); openDiff() }
                     if (event.key === "ArrowRight" && !expanded().has(row.commit.changeID)) { event.preventDefault(); toggleFiles(row.commit.changeID) }
                     if (event.key === "ArrowLeft" && expanded().has(row.commit.changeID)) { event.preventDefault(); toggleFiles(row.commit.changeID) }
                   }}>
@@ -342,5 +400,5 @@ export function TreeView(props: { session: MountedSession; revision: number; onC
       setBookmark={() => bookmarkChange(menu.commit)}
       edit={() => void editChange(menu.commit)}
       close={closeMenu} abandon={() => void abandonChange()} describe={() => describeChange(menu.commit)} />}</Show>
-  </>
+  </div>
 }

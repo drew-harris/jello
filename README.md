@@ -4,6 +4,9 @@ Jello: an OpenCode Desktop GUI plugin.
 
 ## JJ feature
 
+Press **⌘⇧J** to open JJ Tree and focus it for keyboard navigation (even if it is
+already open). This app-wide shortcut also works from text fields and is
+customizable under **Settings > Shortcuts**.
 Run `/tree` (or `/jj`), or choose **Open JJ Tree** in the command palette (⌘⇧P),
 to open the **JJ Tree** panel for the current session's directory. It renders a
 native commit list with colored SVG ancestry lanes, working-copy rings, immutable
@@ -44,6 +47,15 @@ the current working copy. Use →/← to expand/collapse with the keyboard. Grap
 connections adjust to the expanded rows; long file lists scroll independently.
 Expanded changes are remembered per session and directory when leaving and
 returning to the panel.
+
+While keyboard focus is inside the tree, a keyboard icon appears to the left of
+the repository header. Use **j/k** to select down/up, **n** to create a new change
+on the selection, **Shift+B** to set a bookmark, **l** to expand its files, and
+**a** to abandon it after confirmation, **d** to open its diff, and **Enter** to
+open Describe. Selecting another change collapses other
+expanded lists. These shortcuts do not run in text fields, dialogs, or menus;
+immutable changes cannot be abandoned.
+
 Click a file to open a file-targeted **JJ Diff** tab with that file selected and
 the file tree hidden. Its toolbar can show the file tree again. File-targeted
 tabs retain their commit, directory and file when restored.

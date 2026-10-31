@@ -15,11 +15,13 @@ export const setupJJ: Plugin.Setup<typeof definition> = (ctx) => {
   setupDiff(ctx)
   const key = `${ctx.id}:jj`
   const [revision, setRevision] = createSignal(0)
+  const [focusRequest, setFocusRequest] = createSignal(0)
   const open = () => {
     const session = ctx.sessions.current()
     if (!session) return
     setRevision((value) => value + 1)
     ctx.layout.open(key, session)
+    setFocusRequest((value) => value + 1)
   }
   const toggle = () => {
     const session = ctx.sessions.current()
@@ -68,11 +70,14 @@ export const setupJJ: Plugin.Setup<typeof definition> = (ctx) => {
       icon: "extensions",
     },
     list: (input) => input.open.includes("jj") ? [tab] : [],
-    render: (props) => <PanelView session={props.session} revision={revision()} onChanged={() => setRevision((value) => value + 1)} />,
+    render: (props) => <PanelView session={props.session} revision={revision()} focusRequest={focusRequest()} onChanged={() => setRevision((value) => value + 1)} />,
+    enter: () => setFocusRequest((value) => value + 1),
   })
   ctx.add(Command, (): Command => ({
     id: "jj.open",
     title: "Open JJ Tree",
+    bind: "mod+shift+j",
+    editable: true,
     keywords: "tree log history commits graph",
     group: "JJ",
     section: "session",

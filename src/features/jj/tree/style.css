@@ -28,6 +28,9 @@
   color-scheme: dark;
 }
 .jello-jj-tree button { color: inherit; font: inherit; cursor: pointer; }
+.jello-jj-tree-content { display: flex; flex-direction: column; flex: 1; min-height: 0; outline: none; }
+.jello-jj-tree-keyboard, .jello-jj-tree-keyboard > span { display: flex; align-items: center; }
+.jello-jj-tree-keyboard { flex: none; color: var(--tree-accent); margin-right: 2px; }
 .jello-jj-tree button:disabled { opacity: .4; cursor: default; }
 .jello-jj-tree button:focus-visible { outline: 2px solid var(--tree-accent); outline-offset: -2px; }
 .jello-jj-tree-toolbar {
