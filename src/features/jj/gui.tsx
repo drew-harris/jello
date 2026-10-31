@@ -3,6 +3,8 @@ import { createSignal } from "solid-js"
 import type { definition } from "../../gui/definition"
 import { PanelView } from "./panel"
 import { StatusBar } from "./status-bar"
+import { CommitDialog } from "./commit-dialog"
+import { Status } from "./rpc"
 import css from "./style.css?inline"
 
 // All JJ window contributions live here; the Jello shell only composes features.
@@ -20,8 +22,29 @@ export const setupJJ: Plugin.Setup<typeof definition> = (ctx) => {
     if (session) ctx.layout.toggle(key, session)
   }
 
+  ctx.add(Command, (): Command => ({
+    id: "jj.commit",
+    title: "Commit",
+    group: "JJ",
+    section: "session",
+    slash: { name: "commit" },
+    enabled: !!ctx.sessions.current(),
+    run: () => {
+      const session = ctx.sessions.current()
+      if (!session) return
+      const directory = session.directory
+      const client = session.server.client
+      ctx.dialogs.open((dialog) => <CommitDialog
+        directory={directory}
+        close={dialog.close}
+        onCommitted={() => setRevision((value) => value + 1)}
+        commit={async (message) => { await client.rpc(Status).commit({ directory, message }) }}
+      />)
+    },
+  }))
+
   ctx.add(Style, css)
-  ctx.add(Slot, { at: "window.bottom", render: () => <StatusBar revision={revision()} onCommitted={() => setRevision((value) => value + 1)} /> })
+  ctx.add(Slot, { at: "window.bottom", render: () => <StatusBar revision={revision()} /> })
 
   const tab: PanelTab = {
     id: "jj",

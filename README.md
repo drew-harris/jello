@@ -15,7 +15,7 @@ highlighted. Parent details hide on narrow windows. It refreshes
 every 10 seconds while the window is visible, and on focus. Click it to open the
 full status panel; hover to see the raw output or error.
 
-The **Commit** button opens a message dialog. Confirming runs `jj commit -m`,
+The **Commit** button or `/commit` opens a message dialog. Confirming runs `jj commit -m`,
 committing all working-copy changes and starting a new empty change. Canceling
 makes no changes; failures remain visible in the dialog.
 

@@ -4,7 +4,6 @@ import { Status } from "./rpc"
 import type { definition } from "../../gui/definition"
 import { summarizeStatus } from "./status-summary"
 import type { Overview, Revision } from "./overview"
-import { CommitDialog } from "./commit-dialog"
 
 function RevisionLabel(props: { revision: Revision }) {
   return (
@@ -21,7 +20,7 @@ function RevisionLabel(props: { revision: Revision }) {
   )
 }
 
-export function StatusBar(props: { readonly revision: number; onCommitted(): void }) {
+export function StatusBar(props: { readonly revision: number }) {
   const ctx = usePlugin<typeof definition>()
   const [status, { refetch }] = createResource(
     () => {
@@ -65,18 +64,7 @@ export function StatusBar(props: { readonly revision: number; onCommitted(): voi
     return result?.directory === session?.directory && result?.server === session?.server.id ? result : undefined
   }
 
-  const openCommit = () => {
-    const session = ctx.sessions.current()
-    if (!session) return
-    const directory = session.directory
-    const client = session.server.client
-    ctx.dialogs.open((dialog) => <CommitDialog
-      directory={directory}
-      close={dialog.close}
-      onCommitted={props.onCommitted}
-      commit={async (message) => { await client.rpc(Status).commit({ directory, message }) }}
-    />)
-  }
+  const openCommit = () => void ctx.commands.run(`${ctx.id}.jj.commit`)
 
   return (
     <Show when={ctx.sessions.current()}>
@@ -105,6 +93,7 @@ export function StatusBar(props: { readonly revision: number; onCommitted(): voi
           <For each={current()?.revisions.filter((revision) => !revision.current)}>
             {(revision) => <RevisionLabel revision={revision} />}
           </For>
+          <Show when={(current()?.summary.split(" · ").length ?? 0) > 2}>
           <span class="jello-jj-file-counts">
             <For each={current()?.summary.split(" · ").slice(2)}>
               {(count, index) => <>
@@ -120,6 +109,7 @@ export function StatusBar(props: { readonly revision: number; onCommitted(): voi
               </>}
             </For>
           </span>
+          </Show>
         </Show>
       </button>
       <button type="button" class="jello-jj-commit" onClick={openCommit} disabled={!current() || current()?.error}

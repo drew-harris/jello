@@ -19,6 +19,5 @@ export function summarizeStatus(text: string): string {
   for (const [kind, count] of counts) parts.push(`${count} ${labels[kind]}`)
   const conflicts = /^.*unresolved conflicts.*$/m.test(text)
   if (conflicts) parts.push("conflicts")
-  if (!counts.size && !conflicts) parts.push("clean")
   return parts.join(" · ")
 }

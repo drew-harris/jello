@@ -8,10 +8,10 @@ test("summarizes the change ID and file counts", () => {
   ), "jj · tpluwtwk · 2 modified · 1 added · 1 deleted")
 })
 
-test("shows clean working copies", () => {
+test("omits counts for clean working copies", () => {
   assert.equal(summarizeStatus(
     "The working copy has no changes.\nWorking copy (@) : abcdefgh 12345678 (empty)\n",
-  ), "jj · abcdefgh · clean")
+  ), "jj · abcdefgh")
 })
 
 test("flags unresolved conflicts", () => {
