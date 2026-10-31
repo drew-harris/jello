@@ -1,5 +1,8 @@
 import { Rpc } from "@opencode/plugin/rpc"
 
+// RPC schema validation disables regex patterns. Validate commit-ID syntax in
+// server helpers; use only length constraints in the transport schemas.
+
 const revisionSchema = {
   type: "object",
   properties: {
@@ -26,7 +29,7 @@ export const Status = Rpc.define({
         type: "object",
         properties: {
           directory: { type: "string" },
-          commitID: { type: "string", pattern: "^(?:[0-9a-f]{40}|[0-9a-f]{64})$" },
+          commitID: { type: "string", minLength: 40, maxLength: 64 },
           message: { type: "string" },
         },
         required: ["directory", "commitID", "message"],
@@ -44,7 +47,7 @@ export const Status = Rpc.define({
         type: "object",
         properties: {
           directory: { type: "string" },
-          commitID: { type: "string", pattern: "^(?:[0-9a-f]{40}|[0-9a-f]{64})$" },
+          commitID: { type: "string", minLength: 40, maxLength: 64 },
         },
         required: ["directory", "commitID"],
         additionalProperties: false,
