@@ -24,6 +24,20 @@ const revisionSchema = {
 export const Status = Rpc.define({
   id: "jello.jj.status",
   methods: {
+    newChange: {
+      input: {
+        type: "object",
+        properties: { directory: { type: "string" } },
+        required: ["directory"],
+        additionalProperties: false,
+      },
+      output: {
+        type: "object",
+        properties: { created: { type: "boolean" } },
+        required: ["created"],
+        additionalProperties: false,
+      },
+    },
     describe: {
       input: {
         type: "object",

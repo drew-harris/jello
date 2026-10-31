@@ -7,9 +7,15 @@ import { readChangedFiles } from "./changed-files.ts"
 import { readTree } from "./tree/server.ts"
 import { abandon } from "./tree/abandon.ts"
 import { describe } from "./tree/describe.ts"
+import { newChange } from "./tree/new.ts"
 
 export async function setupJJ(ctx: Plugin.Context) {
   await ctx.rpc.register(Status, {
+    newChange: async (input, context) => {
+      const { directory } = input as { directory: string }
+      await newChange(directory, context.signal)
+      return { created: true }
+    },
     describe: async (input, context) => {
       const { directory, commitID, message } = input as { directory: string; commitID: string; message: string }
       await describe(directory, commitID, message, context.signal)

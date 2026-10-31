@@ -41,6 +41,8 @@ export function TreeView(props: { session: MountedSession; revision: number; onC
   })
   const [notice, setNotice] = createSignal("")
   const [abandoning, setAbandoning] = createSignal(false)
+  const [creating, setCreating] = createSignal(false)
+  const mutating = () => abandoning() || creating()
   const [contextMenu, setContextMenu] = createSignal<{ x: number; y: number; commit: TreeCommit; trigger: HTMLButtonElement }>()
   const buttons = new Map<string, HTMLButtonElement>()
   const [history, { refetch }] = createResource(
@@ -67,7 +69,7 @@ export function TreeView(props: { session: MountedSession; revision: number; onC
   const rowCenter = (index: number) => index * ROW_HEIGHT + ROW_HEIGHT / 2
   const boundaryY = (index: number) => (index + 1) * ROW_HEIGHT - 5
   const root = (id: string) => /^0+$/.test(id)
-  const refresh = () => { if (!history.loading && !abandoning()) void refetch() }
+  const refresh = () => { if (!history.loading && !mutating()) void refetch() }
   const onFocus = () => { if (!document.hidden) refresh() }
   const timer = setInterval(onFocus, 10_000)
   window.addEventListener("focus", onFocus)
@@ -102,7 +104,7 @@ export function TreeView(props: { session: MountedSession; revision: number; onC
   }
   const abandonChange = async () => {
     const target = contextMenu()?.commit
-    if (!target || target.immutable || root(target.commitID) || abandoning()) return
+    if (!target || target.immutable || root(target.commitID) || mutating()) return
     const directory = props.session.directory
     const client = props.session.server.client
     setAbandoning(true)
@@ -119,9 +121,8 @@ export function TreeView(props: { session: MountedSession; revision: number; onC
       setAbandoning(false)
     }
   }
-  const describeChange = () => {
-    const target = contextMenu()?.commit
-    if (!target || target.immutable || root(target.commitID) || abandoning()) return
+  const describeChange = (target: TreeCommit | undefined) => {
+    if (!target || target.immutable || root(target.commitID) || mutating()) return
     const directory = props.session.directory
     const client = props.session.server.client
     closeMenu(true)
@@ -132,14 +133,33 @@ export function TreeView(props: { session: MountedSession; revision: number; onC
       }} />)
   }
 
+  const createChange = async () => {
+    if (mutating()) return
+    const directory = props.session.directory
+    const client = props.session.server.client
+    setCreating(true)
+    closeMenu()
+    try {
+      await client.rpc(Status).newChange({ directory })
+      props.onChanged()
+      ctx.toast.show({ variant: "success", title: "New change created" })
+    } catch (error) {
+      ctx.toast.show({ variant: "error", title: "Could not create change", description: errorMessage(error) })
+    } finally {
+      setCreating(false)
+    }
+  }
+
   return <>
     <header class="jello-jj-tree-toolbar">
       <div class="jello-jj-tree-heading" title={props.session.directory}>
         <strong>{props.session.directory.split(/[\\/]/).filter(Boolean).at(-1) || props.session.directory}</strong>
         <span>Revision history</span>
       </div>
+      <button type="button" class="jello-jj-tree-tool" title="New change (jj new)" aria-label="New change"
+        disabled={history.loading || mutating()} aria-busy={creating()} onClick={() => void createChange()}>+</button>
       <button type="button" class="jello-jj-tree-tool" title="Jump to working copy" aria-label="Jump to working copy" disabled={!commits().some((commit) => commit.current)} onClick={jump}>@</button>
-      <button type="button" class="jello-jj-tree-tool" title="Refresh history" aria-label="Refresh history" disabled={history.loading || abandoning()} onClick={refresh}>
+      <button type="button" class="jello-jj-tree-tool" title="Refresh history" aria-label="Refresh history" disabled={history.loading || mutating()} onClick={refresh}>
         <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
           <path d="M16 8a6 6 0 1 0 0 5M16 3v5h-5" />
         </svg>
@@ -186,8 +206,15 @@ export function TreeView(props: { session: MountedSession; revision: number; onC
                   aria-expanded={contextMenu()?.commit.commitID === row.commit.commitID}
                   aria-current={row.commit.current ? "true" : undefined}
                   aria-label={`${row.commit.current ? "Working copy, " : ""}${row.commit.empty && !root(row.commit.commitID) ? "Empty change, " : ""}${row.commit.changeID}, ${root(row.commit.commitID) ? "Root" : row.commit.description.trim() || "No description"}${row.missingParents.length ? ", some ancestry not shown" : ""}`}
-                  onClick={() => { setSelection({ commitID: row.commit.commitID, changeID: row.commit.changeID }); setNotice("") }}
-                  onDblClick={openDiff}
+                  onClick={(event) => {
+                    setSelection({ commitID: row.commit.commitID, changeID: row.commit.changeID })
+                    setNotice("")
+                    if (event.metaKey) {
+                      event.preventDefault()
+                      describeChange(row.commit)
+                    }
+                  }}
+                  onDblClick={(event) => { if (!event.metaKey) openDiff() }}
                   onContextMenu={(event) => {
                     event.preventDefault()
                     setSelection({ commitID: row.commit.commitID, changeID: row.commit.changeID })
@@ -257,7 +284,7 @@ export function TreeView(props: { session: MountedSession; revision: number; onC
     </Show>
     <div class="jello-jj-tree-footnote"><span>{commits().length} revisions</span><span>↑ ↓ navigate · Enter opens diff</span></div>
     <Show keyed when={contextMenu()}>{(menu) => <ChangeContextMenu x={menu.x} y={menu.y}
-      disabled={menu.commit.immutable || root(menu.commit.commitID) || abandoning()}
-      close={closeMenu} abandon={() => void abandonChange()} describe={describeChange} />}</Show>
+      disabled={menu.commit.immutable || root(menu.commit.commitID) || mutating()}
+      close={closeMenu} abandon={() => void abandonChange()} describe={() => describeChange(menu.commit)} />}</Show>
   </>
 }
