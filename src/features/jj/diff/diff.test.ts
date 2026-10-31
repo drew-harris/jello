@@ -44,6 +44,7 @@ test("file selection matches exact paths, including deleted and renamed files", 
 
 test("rejects arbitrary revision expressions before executing jj", async () => {
   await assert.rejects(readRevisionDiff("/nonexistent", "@ | all()"), /Invalid commit ID/)
+  await assert.rejects(readRevisionDiff("/nonexistent", "a".repeat(40), undefined, "@"), /Invalid known commit ID/)
 })
 
 test("reads a pinned historical revision, not current working-copy changes", async () => {
@@ -73,6 +74,54 @@ test("reads a pinned historical revision, not current working-copy changes", asy
     assert.ok(files.some((file) => file.name === "image.bin" && file.hunks.length === 0))
     const root = await readRevisionDiff(directory, "0".repeat(40))
     assert.equal(root.patch, "")
+  } finally {
+    await rm(directory, { recursive: true, force: true })
+  }
+})
+
+test("working-copy diffs snapshot edits and follow the same change across rewritten hashes", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "jello-live-diff-"))
+  try {
+    const jj = async (args: string[]) => (await execute("jj", args, { cwd: directory })).stdout
+    await jj(["git", "init", "."])
+    await jj(["config", "set", "--repo", "user.name", "Jello Test"])
+    await jj(["config", "set", "--repo", "user.email", "test@example.com"])
+    await writeFile(join(directory, "example.txt"), "base\n")
+    await commit(directory, "Base")
+    const originalID = (await jj(["log", "--no-graph", "-r", "@", "-T", "commit_id"])).trim()
+    await writeFile(join(directory, "example.txt"), "first edit\n")
+    const first = await readRevisionDiff(directory, originalID)
+    assert.equal(first.revision.current, true)
+    assert.notEqual(first.revision.commitID, originalID)
+    assert.ok(first.patch.includes("+first edit"))
+    await writeFile(join(directory, "example.txt"), "second edit\n")
+    // Another JJ panel may snapshot the checkout before this tab refreshes.
+    await jj(["status"])
+    const second = await readRevisionDiff(directory, originalID)
+    assert.equal(second.revision.current, true)
+    assert.notEqual(second.revision.commitID, first.revision.commitID)
+    assert.ok(second.patch.includes("+second edit"))
+    const unchanged = await readRevisionDiff(directory, second.revision.commitID)
+    assert.equal(unchanged.patch, second.patch)
+    assert.equal(unchanged.revision.commitID, second.revision.commitID)
+    const conditional = await readRevisionDiff(directory, second.revision.commitID, undefined, second.revision.commitID)
+    assert.equal(conditional.unchanged, true)
+    assert.equal(conditional.patch, "")
+    assert.equal(conditional.revision.current, true)
+    await writeFile(join(directory, "example.txt"), "third edit\n")
+    const changed = await readRevisionDiff(directory, second.revision.commitID, undefined, second.revision.commitID)
+    assert.ok(!changed.unchanged)
+    assert.ok(changed.patch.includes("+third edit"))
+    await jj(["new"])
+    await writeFile(join(directory, "example.txt"), "different change\n")
+    const stopped = await readRevisionDiff(directory, changed.revision.commitID)
+    assert.equal(stopped.revision.current, false)
+    assert.equal(stopped.revision.commitID, changed.revision.commitID)
+    assert.equal(stopped.patch, changed.patch)
+    assert.ok(!stopped.patch.includes("different change"))
+    const stoppedConditional = await readRevisionDiff(directory, changed.revision.commitID, undefined, changed.revision.commitID)
+    assert.equal(stoppedConditional.unchanged, true)
+    assert.equal(stoppedConditional.revision.current, false)
   } finally {
     await rm(directory, { recursive: true, force: true })
   }

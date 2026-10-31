@@ -199,13 +199,14 @@ export const Status = Rpc.define({
         properties: {
           directory: { type: "string" },
           commitID: { type: "string", minLength: 40, maxLength: 64 },
+          knownCommitID: { type: "string", minLength: 40, maxLength: 64 },
         },
         required: ["directory", "commitID"],
         additionalProperties: false,
       },
       output: {
         type: "object",
-        properties: { patch: { type: "string" }, revision: revisionSchema },
+        properties: { patch: { type: "string" }, revision: revisionSchema, unchanged: { type: "boolean" } },
         required: ["patch", "revision"],
         additionalProperties: false,
       },

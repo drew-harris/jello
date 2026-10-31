@@ -7,19 +7,44 @@ const execute = promisify(execFile)
 export interface RevisionDiff {
   patch: string
   revision: Revision
+  unchanged?: boolean
 }
 
-export async function readRevisionDiff(directory: string, commitID: string, signal?: AbortSignal): Promise<RevisionDiff> {
-  // Only accept the immutable commit hash from the overview, never arbitrary revsets or options.
+const identityTemplate = [
+  '"{"',
+  "'\"commitID\":' ++ json(self.commit_id())",
+  "',\"changeID\":' ++ json(self.change_id())",
+  "',\"current\":' ++ json(current_working_copy)",
+  "',\"divergent\":' ++ json(divergent)",
+  '"}\\n"',
+].join(" ++ ")
+
+export async function readRevisionDiff(directory: string, commitID: string, signal?: AbortSignal, knownCommitID?: string): Promise<RevisionDiff> {
+  // Only accept an exact commit hash, never arbitrary revsets or options.
   if (!/^[a-f0-9]{40,64}$/.test(commitID)) throw new Error("Invalid commit ID")
+  if (knownCommitID !== undefined && !/^[a-f0-9]{40,64}$/.test(knownCommitID)) throw new Error("Invalid known commit ID")
   const options = { cwd: directory, signal, timeout: 30_000, maxBuffer: 16 * 1024 * 1024 }
   try {
-    const [metadata, diff] = await Promise.all([
-      execute("jj", ["log", "--ignore-working-copy", "--no-graph", "--color=never", "--no-pager", "-r", commitID, "-T", revisionTemplate], options),
-      execute("jj", ["diff", "--ignore-working-copy", "--git", "--context=6", "--color=never", "--no-pager", "-r", commitID], options),
-    ])
+    // A working-copy snapshot rewrites its commit hash. Compare full change IDs
+    // so this tab follows that change only while it is still the working copy.
+    const identities = await execute("jj", ["log", "--ignore-working-copy", "--no-graph", "--color=never", "--no-pager",
+      "-r", `${commitID} | @`, "-T", identityTemplate], options)
+    const commits = identities.stdout.split("\n").filter(Boolean).map((line) => JSON.parse(line) as {
+      commitID: string; changeID: string; current: boolean; divergent: boolean
+    })
+    const original = commits.find((commit) => commit.commitID === commitID)
+    const current = commits.find((commit) => commit.current)
+    const live = !!original && original.changeID === current?.changeID && !original.divergent && !current.divergent
+    // Snapshot only a live working copy, then pin both metadata and patch to
+    // the resulting exact commit. Historical tabs never snapshot the checkout.
+    const metadata = await execute("jj", ["log", ...(!live ? ["--ignore-working-copy"] : []), "--no-graph", "--color=never", "--no-pager",
+      "-r", live ? "@" : commitID, "-T", revisionTemplate], options)
     const revision = parseRevisions(metadata.stdout)[0]
     if (!revision) throw new Error("Revision not found")
+    // The client already holds the patch for this immutable hash. Avoid the
+    // expensive diff command and sending megabytes over the remote connection.
+    if (revision.commitID === knownCommitID) return { revision, patch: "", unchanged: true }
+    const diff = await execute("jj", ["diff", "--ignore-working-copy", "--git", "--context=6", "--color=never", "--no-pager", "-r", revision.commitID], options)
     return { patch: diff.stdout, revision }
   } catch (error) {
     const failure = error as Error & { stderr?: string }

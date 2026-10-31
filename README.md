@@ -85,8 +85,19 @@ tree panel with `/tree`; hover over the status to see the raw output or error.
 Click **Parent** or **Earlier** to open a **JJ Diff** tab for that exact commit.
 The viewer uses [Pierre Diffs](https://diffs.com/) with syntax highlighting,
 unified/split layouts, line wrapping, and a searchable changed-file list. Tabs
-remain pinned to their commit and original directory, and can be reopened after
-closing. Binary and metadata-only changes show a summary rather than text hunks.
+remain pinned to their original directory, and historical revisions stay pinned
+to their commit. A diff of the current working copy shows **@ working copy** and
+refreshes about every 3 seconds while visible, when its tab is selected, and on window
+focus. It snapshots file edits and follows the same change across rewritten
+commit hashes; switching to another working-copy change stops live updates rather
+than changing this tab's target. Refreshes retain the existing diff, selected file,
+filter, and sidebar, with a small progress indicator and inline retry on failure.
+Polling waits for each request to finish, slows down for slow repositories and
+errors, and coalesces focus events. Unchanged revisions skip diff generation,
+patch transfer, parsing, and rerendering. Background refreshes never replace the
+view with a loading screen; the renderer updates in place.
+Tabs can be reopened after closing. Binary and metadata-only changes show a summary
+rather than text hunks.
 
 The **Commit** button or `/commit` opens a message dialog. Confirming runs `jj commit -m`,
 committing all working-copy changes and starting a new empty change. Canceling

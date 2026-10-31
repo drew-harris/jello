@@ -28,7 +28,7 @@ export const setupDiff: Plugin.Setup<typeof definition> = (ctx) => {
     render: (props) => <DiffView session={props.session} tabID={props.tab.id}
       focusRevision={focused().id === props.tab.id ? focused().revision : 0} />,
     focus: ({ tab }) => {
-      if (parseDiffTabID(tab.id)?.file) setFocused((previous) => ({ id: tab.id, revision: previous.revision + 1 }))
+      setFocused((previous) => ({ id: tab.id, revision: previous.revision + 1 }))
     },
     close: ({ tab }) => { tabs.delete(tab.id) },
   })

@@ -29,6 +29,10 @@
 .jello-jj-diff-change-id:hover { background: var(--jj-diff-hover); }
 .jello-jj-diff-change-id strong { color: var(--jj-diff-mod); font-weight: 600; }
 .jello-jj-diff-revision-meta > time { color: var(--jj-diff-muted); }
+.jello-jj-diff-working-copy { color: var(--jj-diff-mod); white-space: nowrap; font-size: 11px; }
+.jello-jj-diff-refresh-status { color: var(--jj-diff-muted); font-size: 10px; width: 65px; flex-shrink: 0; opacity: 0; transition: opacity 120ms ease; }
+.jello-jj-diff-refresh-status.is-refreshing { opacity: 1; }
+.jello-jj-diff-refresh-error { padding: 6px 12px; border-bottom: 1px solid var(--jj-diff-border); color: var(--jj-diff-del); }
 .jello-jj-diff-commit-message { max-height: 120px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.5; }
 .jello-jj-diff[data-mode="dark"] { color-scheme: dark; }
 .jello-jj-diff[data-mode="light"] { color-scheme: light; }
