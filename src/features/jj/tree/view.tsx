@@ -292,7 +292,6 @@ export function TreeView(props: { session: MountedSession; revision: number; onC
         </footer>
       </div>
     </Show>
-    <div class="jello-jj-tree-footnote"><span>{commits().length} revisions</span><span>↑ ↓ navigate · Enter opens diff</span></div>
     <Show keyed when={contextMenu()}>{(menu) => <ChangeContextMenu x={menu.x} y={menu.y}
       disabled={menu.commit.immutable || root(menu.commit.commitID) || mutating()}
       newDisabled={mutating()} newChange={() => void createChange(menu.commit.commitID)}
