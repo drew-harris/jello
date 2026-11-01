@@ -28,7 +28,6 @@ export const setup: Plugin.Setup<typeof definition> = (ctx) => {
     title: "Jello",
     entries: [
       { id: "greeting", title: "Greeting" },
-      { id: "status", title: "Show JJ titlebar item", keywords: "titlebar pill" },
     ],
     render: (input) => <SettingsView highlight={input.target} />,
   })

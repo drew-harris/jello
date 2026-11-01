@@ -1,4 +1,4 @@
-import { Command, MenuItem, Panel, Slot, Style, TitlebarItem, type PanelTab, type Plugin } from "@opencode/plugin/gui"
+import { Command, MenuItem, Panel, Slot, Style, type PanelTab, type Plugin } from "@opencode/plugin/gui"
 import { createSignal } from "solid-js"
 import type { definition } from "../../gui/definition"
 import { PanelView } from "./panel"
@@ -115,9 +115,4 @@ export const setupJJ: Plugin.Setup<typeof definition> = (ctx) => {
       run: open,
     }
   })
-  ctx.add(TitlebarItem, (): TitlebarItem | undefined =>
-    ctx.stores.prefs.value.showStatus
-      ? { id: "jj.status", label: "JJ", icon: "extensions", run: toggle }
-      : undefined,
-  )
 }

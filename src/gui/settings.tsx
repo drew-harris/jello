@@ -18,16 +18,6 @@ export function SettingsView(_props: { readonly highlight?: string }) {
           })
         }
       />
-      <ui.Switch
-        label="Show JJ titlebar item"
-        description="Shows a JJ shortcut in the window titlebar or tabs footer."
-        checked={prefs.value.showStatus}
-        onChange={(showStatus) =>
-          prefs.update((draft) => {
-            draft.showStatus = showStatus
-          })
-        }
-      />
     </div>
   )
 }
