@@ -3,6 +3,7 @@ import { createEffect, on, onCleanup, onMount } from "solid-js"
 import { usePlugin } from "@opencode/plugin/gui"
 import { diffThemeCSS } from "./theme"
 import { createDiffStack, stackFileIndex } from "./stack"
+import { errorMessage } from "../errors"
 
 export function MultiFileDiff(props: {
   files: FileDiffMetadata[]
@@ -17,6 +18,14 @@ export function MultiFileDiff(props: {
   const viewer = new CodeView()
   const items = createDiffStack()
   const initialFile = props.files[props.selected]?.name
+  const copyPath = async (path: string) => {
+    try {
+      await ctx.system.copy(path)
+      ctx.toast.show({ title: "Copied file path to clipboard", variant: "success", duration: 2000 })
+    } catch (error) {
+      ctx.toast.show({ title: "Could not copy file path", description: errorMessage(error), variant: "error" })
+    }
+  }
   onMount(() => {
     viewer.setup(container)
     const unsubscribe = viewer.subscribeToScroll((scrollTop) => {
@@ -44,11 +53,32 @@ export function MultiFileDiff(props: {
           background-color: ${ctx.appearance.mode() === "dark" ? "#232323" : "#f3f3f3"};
         }
         [data-header-content] { gap: 12px; }
+        [data-header-content] [role=button] { cursor: pointer; }
+        [data-header-content] [role=button]:hover { text-decoration: underline; }
+        [data-header-content] [role=button]:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
         [data-header-content] [data-title], [data-header-content] [data-prev-name] {
           font-family: var(--diffs-font-family);
           letter-spacing: 0.025em;
           line-height: 1.6;
         }`,
+      onPostRender: (node, _instance, phase) => {
+        if (phase === "unmount") return
+        const root = node.shadowRoot ?? node
+        for (const title of root.querySelectorAll<HTMLElement>("[data-header-content] [data-title], [data-header-content] [data-prev-name]")) {
+          const path = title.textContent ?? ""
+          title.setAttribute("role", "button")
+          title.tabIndex = 0
+          title.title = `Copy file path: ${path}`
+          title.setAttribute("aria-label", `Copy file path: ${path}`)
+          title.onclick = () => { void copyPath(path) }
+          title.onkeydown = (event) => {
+            if (event.key !== "Enter" && event.key !== " ") return
+            event.preventDefault()
+            event.stopPropagation()
+            void copyPath(path)
+          }
+        }
+      },
       renderHeaderMetadata: (file) => {
         if (!("hunks" in file)) return
         if (!file.hunks.length) return "No text hunks (binary, rename, empty file, or mode-only change)"
