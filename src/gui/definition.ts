@@ -21,8 +21,9 @@ export const definition = Plugin.define({
       changeID: Schema.String,
       limit: Schema.Number,
     }), { directory: "", commitID: "", changeID: "", limit: 100 }),
-    prefs: Store.global(Schema.Struct({ greeting: Schema.String }), {
+    prefs: Store.global(Schema.Struct({ greeting: Schema.String, showStatusBar: Schema.Boolean }), {
       greeting: "Hello",
+      showStatusBar: true,
     }),
   },
 })

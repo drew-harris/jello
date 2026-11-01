@@ -1,5 +1,5 @@
 import { Command, MenuItem, Panel, Slot, Style, type PanelTab, type Plugin } from "@opencode/plugin/gui"
-import { createSignal } from "solid-js"
+import { createSignal, Show } from "solid-js"
 import type { definition } from "../../gui/definition"
 import { PanelView } from "./panel"
 import { StatusBar } from "./status-bar"
@@ -52,7 +52,21 @@ export const setupJJ: Plugin.Setup<typeof definition> = (ctx) => {
 
   ctx.add(Style, css)
   ctx.add(Style, treeCSS)
-  ctx.add(Slot, { at: "window.bottom", render: () => <StatusBar revision={revision()} /> })
+  ctx.add(Slot, {
+    at: "window.bottom",
+    render: () => <Show when={ctx.stores.prefs.value.showStatusBar}><StatusBar revision={revision()} /></Show>,
+  })
+  ctx.add(Command, {
+    id: "jj.status.toggle",
+    title: "Toggle JJ status bar",
+    keywords: "bottom footer show hide visibility",
+    group: "JJ",
+    run: () => {
+      ctx.stores.prefs.update((draft) => {
+        draft.showStatusBar = !draft.showStatusBar
+      })
+    },
+  })
 
   const tab: PanelTab = {
     id: "jj",
