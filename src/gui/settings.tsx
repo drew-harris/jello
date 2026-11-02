@@ -1,5 +1,6 @@
 import { usePlugin } from "@opencode/plugin/gui"
 import { createSignal } from "solid-js"
+import { version } from "../../package.json"
 import { DIFF_FONT_SIZE_MAX, DIFF_FONT_SIZE_MIN, normalizeDiffFontSize, type definition } from "./definition"
 
 export function SettingsView(_props: { readonly highlight?: string }) {
@@ -33,6 +34,7 @@ export function SettingsView(_props: { readonly highlight?: string }) {
           <span aria-hidden="true">px</span>
         </div>
       </div>
+      <p class="jello-settings-version">Jello v{version}</p>
     </div>
   )
 }

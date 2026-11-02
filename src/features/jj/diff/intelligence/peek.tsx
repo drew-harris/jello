@@ -236,15 +236,30 @@ export function createCodePeek(session: Accessor<MountedSession>, revision: Acce
 export type CodePeek = ReturnType<typeof createCodePeek>
 
 export function PeekContextMenu(props: { peek: CodePeek }) {
+  const ctx = usePlugin()
+  const copyError = async () => {
+    try {
+      await ctx.system.copy(props.peek.highlightError())
+      ctx.toast.show({ title: "Copied language-server error", variant: "success", duration: 2000 })
+    } catch (error) {
+      ctx.toast.show({ title: "Could not copy error", description: errorMessage(error), variant: "error" })
+    }
+  }
   return <>
     <Show keyed when={props.peek.menu()}>{(menu) => <SymbolContextMenu x={menu.x} y={menu.y}
       symbol={props.peek.target()?.text ?? "Symbol"} disabledReason={props.peek.unavailable()}
       close={props.peek.closeMenu} open={(kind) => void props.peek.open(kind)} />}</Show>
-    <Show when={props.peek.highlightLoading() || props.peek.highlightError() || (props.peek.loading() && !props.peek.opened())}>
-      <span class="jello-jj-symbol-status" role="status" title={props.peek.highlightError()}>
-        {props.peek.loading() && !props.peek.opened() ? "Finding definition…" : props.peek.highlightLoading() ? "Finding occurrences…" : "Could not highlight occurrences"}
-      </span>
-    </Show>
+    <Show when={props.peek.highlightError()} fallback={
+      <Show when={props.peek.highlightLoading() || (props.peek.loading() && !props.peek.opened())}>
+        <span class="jello-jj-symbol-status" role="status">
+          {props.peek.loading() && !props.peek.opened() ? "Finding definition…" : "Finding occurrences…"}
+        </span>
+      </Show>
+    }>{(error) => <div class="jello-jj-symbol-status is-error" role="alert">
+      <strong>Could not highlight occurrences</strong>
+      <pre>{error()}</pre>
+      <button type="button" onClick={() => void copyError()}>Copy error</button>
+    </div>}</Show>
   </>
 }
 

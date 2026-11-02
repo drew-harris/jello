@@ -17,7 +17,8 @@
   font-weight: 500;
 }
 
-.jello-settings-field > p {
+.jello-settings-field > p,
+.jello-settings-version {
   margin: 0;
   color: var(--text-weak, #777);
   font-size: 12px;

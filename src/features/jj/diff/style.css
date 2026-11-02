@@ -31,6 +31,9 @@
 .jello-jj-peek header > button { background: var(--jj-diff-hover); border: 1px solid var(--jj-diff-border); border-radius: 4px; padding: 3px 7px; }
 .jello-jj-diff-main { position: relative; }
 .jello-jj-symbol-status { position: absolute; right: 12px; bottom: 12px; z-index: 3; padding: 5px 9px; border-radius: 5px; background: var(--jj-diff-hover); color: var(--jj-diff-fg); border: 1px solid var(--jj-diff-border); pointer-events: none; font-size: 11px; }
+.jello-jj-symbol-status.is-error { pointer-events: auto; user-select: text; max-width: min(560px, calc(100% - 24px)); max-height: min(240px, 60%); overflow: auto; padding: 10px 12px; box-shadow: 0 4px 16px #0002; }
+.jello-jj-symbol-status.is-error pre { margin: 6px 0 10px; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; }
+.jello-jj-symbol-status.is-error button { border: 1px solid var(--jj-diff-border); border-radius: 4px; background: var(--jj-diff-bg); padding: 3px 8px; }
 .jello-jj-symbol-menu { position: fixed; z-index: 1000; width: 270px; padding: 5px; border: 1px solid #ddd; border-radius: 7px; background: #fff; color: #242424; box-shadow: 0 6px 24px #0003; font-size: 12px; }
 .jello-jj-symbol-menu[data-mode="dark"] { background: #232323; color: #ddd; border-color: #444; }
 .jello-jj-symbol-menu-title { padding: 5px 8px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: .7; }
