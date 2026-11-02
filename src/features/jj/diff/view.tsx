@@ -16,6 +16,9 @@ import type { ViewModels } from "../view-models"
 import { diffSessionKey } from "./navigation"
 import { createDiffModel, type DiffModel } from "./state"
 import { createDiffComments, type DiffAnnotation } from "./comments"
+import { CodePeekPanel, createCodePeek, PeekContextMenu, type CodePeek } from "./intelligence/peek"
+import { createOccurrenceHighlights } from "./intelligence/highlights"
+import { definitionRow, hasDefinitionLine, nextDefinitionFrame } from "./intelligence/jump"
 
 const fileKind = (file: FileDiffMetadata) => ({ new: "A", deleted: "D", "rename-pure": "R", "rename-changed": "R", change: "M" })[file.type]
 const count = (file: FileDiffMetadata, kind: "additionLines" | "deletionLines") => file.hunks.reduce((total, hunk) => total + hunk[kind], 0)
@@ -28,17 +31,35 @@ interface DiffResult {
   refreshError: string
 }
 
-function DiffFile(props: { file: FileDiffMetadata; layout: "unified" | "split"; wrap: boolean; screen: SessionScreen }) {
+function DiffFile(props: { file: FileDiffMetadata; layout: "unified" | "split"; wrap: boolean; screen: SessionScreen; peek: CodePeek }) {
   const ctx = usePlugin<typeof definition>()
   let container!: HTMLDivElement
   const viewer = new FileDiff<DiffAnnotation["metadata"]>()
   const comments = createDiffComments(() => props.screen, () => viewer.setSelectedLines(null))
+  const occurrences = createOccurrenceHighlights(props.peek)
+  const [expanded, setExpanded] = createSignal(false)
+  onCleanup(props.peek.registerDefinitionJump(async (location, signal) => {
+    if (location.path !== props.file.name || !hasDefinitionLine(props.file, location.line)) return false
+    if (!definitionRow(container, location.line)) {
+      setExpanded(true)
+    }
+    await nextDefinitionFrame()
+    await nextDefinitionFrame()
+    if (signal.aborted || !container.isConnected) return false
+    const row = definitionRow(container, location.line)
+    const scroll = container.closest<HTMLElement>(".jello-jj-diff-content")
+    if (!row || !scroll) return false
+    const bounds = row.getBoundingClientRect()
+    scroll.scrollTop += bounds.top - scroll.getBoundingClientRect().top - (scroll.clientHeight - bounds.height) / 2
+    return true
+  }))
   const fontSize = () => normalizeDiffFontSize(ctx.stores.jjDiff.value.fontSize)
   const lineHeight = () => fontSize() + 10
   createEffect(() => {
     const dark = ctx.appearance.mode() === "dark"
     viewer.setOptions({
       diffStyle: props.layout,
+      expandUnchanged: expanded(),
       theme: { light: "jello-jj-light", dark: "jello-jj-dark" },
       themeType: ctx.appearance.mode(),
       overflow: props.wrap ? "wrap" : "scroll",
@@ -50,7 +71,12 @@ function DiffFile(props: { file: FileDiffMetadata; layout: "unified" | "split"; 
       enableGutterUtility: false,
       onLineSelectionEnd: (range) => comments.open(props.file, range),
       renderAnnotation: comments.render,
-      unsafeCSS: diffThemeCSS(dark),
+      onTokenClick: (token, event) => props.peek.click(props.file.name, token, event),
+      onPostRender: (node, _instance, phase) => {
+        occurrences.rendered(node, props.file.name, phase)
+        node.oncontextmenu = phase === "unmount" ? null : (event) => props.peek.contextmenu(props.file.name, event)
+      },
+      unsafeCSS: `${diffThemeCSS(dark)}\n${occurrences.css}`,
     })
     viewer.render({ fileDiff: props.file, containerWrapper: container, lineAnnotations: comments.annotations(props.file) })
   })
@@ -268,6 +294,15 @@ function DiffContents(props: DiffViewProps & { modelKey: string }) {
     onCleanup(() => cancelAnimationFrame(frame))
   }))
   const file = () => files()[selected()]
+  const peek = createCodePeek(() => props.session, () => active()?.data?.revision.commitID ?? "", () => !!active()?.data?.revision.current)
+  // Code clicks focus the enclosing section (outside .diff-main), so attach at
+  // window level and scope to this panel instead of relying on child bubbling.
+  const peekKeydown = (event: KeyboardEvent) => {
+    if (event.defaultPrevented || ctx.dialogs.active()) return
+    if (workspace?.closest(".jello-jj-diff")?.contains(document.activeElement)) peek.keydown(event)
+  }
+  window.addEventListener("keydown", peekKeydown)
+  onCleanup(() => window.removeEventListener("keydown", peekKeydown))
   const tree = createMemo(() => buildFileTree(files(), query()))
   const totals = createMemo(() => files().reduce((total, file) => ({ added: total.added + count(file, "additionLines"), deleted: total.deleted + count(file, "deletionLines") }), { added: 0, deleted: 0 }))
 
@@ -369,6 +404,7 @@ function DiffContents(props: DiffViewProps & { modelKey: string }) {
                 <button type="button" title="Split diff" aria-label="Split diff" aria-pressed={layout() === "split"} onClick={() => setLayout("split")}><DiffIcon name="split" /></button>
               </div>
             </div>
+            <PeekContextMenu peek={peek} />
             <Show when={multiFile() && files().length} fallback={
             <Show when={file()} fallback={<div class="jello-jj-diff-empty">{(props.requestedFile ?? parseDiffTabID(props.tabID)?.file) && files().length ? "The requested file was not found in this revision's diff. Use the file tree to choose another file." : "This revision has no file changes."}</div>}>{(file) => <>
               <header class="jello-jj-diff-file-heading" title={file().prevName ? `${file().prevName} → ${file().name}` : file().name}>
@@ -379,11 +415,12 @@ function DiffContents(props: DiffViewProps & { modelKey: string }) {
               <div class="jello-jj-diff-content"><Show when={file().hunks.length} fallback={<div class="jello-jj-diff-empty">
                 <p>{file().prevName ? `Renamed from ${file().prevName}. ` : ""}No text hunks (binary, rename, empty file, or mode-only change).</p>
                 <Show when={file().prevMode !== file().mode}><p>Mode: {file().prevMode || "none"} → {file().mode || "none"}</p></Show>
-              </div>}><DiffFile file={file()} layout={layout()} wrap={wrap()} screen={props.screen} /></Show></div>
+              </div>}><DiffFile file={file()} layout={layout()} wrap={wrap()} screen={props.screen} peek={peek} /></Show></div>
             </>}</Show>
             }>
-              <MultiFileDiff files={files()} layout={layout()} wrap={wrap()} selected={selected()} navigation={navigation()} select={setSelected} screen={props.screen} />
+              <MultiFileDiff files={files()} layout={layout()} wrap={wrap()} selected={selected()} navigation={navigation()} select={setSelected} screen={props.screen} peek={peek} />
             </Show>
+            <CodePeekPanel peek={peek} directory={props.session.directory} />
           </div>
         </div>
       </Show>

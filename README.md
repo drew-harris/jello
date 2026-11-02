@@ -117,6 +117,46 @@ loaded patch and does not issue extra JJ commands.
 Tabs can be reopened after closing. Binary and metadata-only changes show a summary
 rather than text hunks.
 
+### Definition and reference peeks
+
+Plain-click a TypeScript/JavaScript variable to highlight its occurrences in the
+same file using thin rounded outlines and a subtle background tint, keeping
+syntax colors intact. Highlights use LSP symbol identity, not word matching, so
+shadowed variables are excluded. They remain visible while scrolling in either
+diff mode; click an already-highlighted occurrence again or press **Escape** to
+clear them. This does not open a peek or search the whole repository. A small
+status indicator shows progress during the first language-server lookup.
+
+Right-click a TypeScript/JavaScript symbol on the working-copy side, then choose
+**Peek definition** or **Peek references** from its context menu. With a symbol
+selected, **F12** peeks its definition and **Shift+F12** peeks references;
+**Shift+F10** or the context-menu key opens its menu.
+**Cmd/Ctrl-click** opens a definition peek directly; add **Shift** for references.
+Both actions open a read-only pane below the diff, without navigating away or
+resetting its scroll position. Select a result to preview syntax-highlighted source
+using the diff's light/dark palette, with the target symbol emphasized. When there
+is only one result, the sidebar is hidden and its file path appears in the peek
+header instead. **Escape** closes the pane. Works in single-file and multi-file modes.
+An unambiguous definition in the same file scrolls directly to its line in the
+diff and emphasizes the definition's symbol instead of opening a peek. Definitions
+outside the loaded diff hunks still use the source preview, as do other-file and
+multiple-definition results. References continue to use the peek pane.
+
+The bundled TypeScript language server runs on the session's OpenCode server,
+beside the checkout; no global language-server installation or Electron IPC is
+needed. **Node.js 22.22.2+ must be on that server's PATH.** It starts on the first
+lookup, is reused for subsequent requests, and
+stops after ten idle minutes or plugin unload. Initial project loading may take
+a moment on large repositories. Results are capped at 500 and source previews
+load on demand. References exclude the declaration itself.
+
+Historical revisions and the deleted/left side are intentionally unsupported;
+they never silently query the current checkout. If a displayed source line has
+changed since the diff loaded, refresh it before trying again. Language support
+is currently TypeScript/JavaScript, including TSX/JSX. The language server prefers
+the workspace's TypeScript installation, with bundled TypeScript as a fallback; project configuration and
+installed dependencies determine resolution accuracy.
+
 The **Commit** button or `/commit` opens a message dialog. Confirming runs `jj commit -m`,
 committing all working-copy changes and starting a new empty change. Canceling
 makes no changes; failures remain visible in the dialog.

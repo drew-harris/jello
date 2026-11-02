@@ -1,11 +1,14 @@
 import { CodeView, type FileDiffMetadata } from "@pierre/diffs"
-import { createEffect, on, onCleanup, onMount } from "solid-js"
+import { createEffect, createSignal, on, onCleanup, onMount } from "solid-js"
 import { usePlugin, type SessionScreen } from "@opencode/plugin/gui"
 import { diffThemeCSS } from "./theme"
 import { createDiffStack, stackFileIndex } from "./stack"
 import { errorMessage } from "../errors"
 import { normalizeDiffFontSize, type definition } from "../../../gui/definition"
 import { createDiffComments, type DiffAnnotation } from "./comments"
+import type { CodePeek } from "./intelligence/peek"
+import { createOccurrenceHighlights } from "./intelligence/highlights"
+import { hasDefinitionLine, nextDefinitionFrame } from "./intelligence/jump"
 
 export function MultiFileDiff(props: {
   files: FileDiffMetadata[]
@@ -15,12 +18,24 @@ export function MultiFileDiff(props: {
   navigation: number
   select(index: number): void
   screen: SessionScreen
+  peek: CodePeek
 }) {
   const ctx = usePlugin<typeof definition>()
   let container!: HTMLDivElement
   const viewer = new CodeView<DiffAnnotation["metadata"]>()
   const items = createDiffStack<DiffAnnotation["metadata"]>()
   const comments = createDiffComments(() => props.screen, () => viewer.setSelectedLines(null))
+  const occurrences = createOccurrenceHighlights(props.peek)
+  const [expanded, setExpanded] = createSignal(false)
+  onCleanup(props.peek.registerDefinitionJump(async (location, signal) => {
+    const file = props.files.find((file) => file.name === location.path)
+    if (!file || !hasDefinitionLine(file, location.line)) return false
+    setExpanded(true)
+    await nextDefinitionFrame()
+    if (signal.aborted || !container.isConnected) return false
+    viewer.scrollTo({ type: "line", id: file.name, lineNumber: location.line + 1, side: "additions", align: "center", behavior: "instant" })
+    return true
+  }))
   const fontSize = () => normalizeDiffFontSize(ctx.stores.jjDiff.value.fontSize)
   const lineHeight = () => fontSize() + 10
   const initialFile = props.files[props.selected]?.name
@@ -44,6 +59,7 @@ export function MultiFileDiff(props: {
   createEffect(() => {
     viewer.setOptions({
       diffStyle: props.layout,
+      expandUnchanged: expanded(),
       theme: { light: "jello-jj-light", dark: "jello-jj-dark" },
       themeType: ctx.appearance.mode(),
       overflow: props.wrap ? "wrap" : "scroll",
@@ -57,9 +73,12 @@ export function MultiFileDiff(props: {
         if (context.item.type === "diff") comments.open(context.item.fileDiff, range)
       },
       renderAnnotation: comments.render,
+      onTokenClick: (token, event, context) => {
+        if (context.item.type === "diff" && "side" in token) props.peek.click(context.item.fileDiff.name, token, event)
+      },
       itemMetrics: { lineHeight: lineHeight(), hunkSeparatorHeight: 24, spacing: 0 },
       layout: { paddingTop: 0, paddingBottom: 16, gap: 12 },
-      unsafeCSS: `${diffThemeCSS(ctx.appearance.mode() === "dark")}
+      unsafeCSS: `${diffThemeCSS(ctx.appearance.mode() === "dark")}\n${occurrences.css}
         [data-diffs-header=default] {
           padding: 10px 16px;
           background-color: ${ctx.appearance.mode() === "dark" ? "#232323" : "#f3f3f3"};
@@ -73,7 +92,12 @@ export function MultiFileDiff(props: {
           letter-spacing: 0.025em;
           line-height: 1.6;
         }`,
-      onPostRender: (node, _instance, phase) => {
+      onPostRender: (node, _instance, phase, context) => {
+        if (context.item.type === "diff") {
+          const path = context.item.fileDiff.name
+          occurrences.rendered(node, path, phase)
+          node.oncontextmenu = phase === "unmount" ? null : (event) => props.peek.contextmenu(path, event)
+        }
         if (phase === "unmount") return
         const root = node.shadowRoot ?? node
         for (const title of root.querySelectorAll<HTMLElement>("[data-header-content] [data-title], [data-header-content] [data-prev-name]")) {
