@@ -93,8 +93,8 @@
 .jello-jj-diff-file-heading strong { font-weight: 600; white-space: nowrap; }
 .jello-jj-diff-file-directory { color: var(--jj-diff-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .jello-jj-diff-content { flex: 1; min-height: 0; overflow: auto; }
-.jello-jj-diff-multi { position: relative; --diffs-font-size: 13px; --diffs-line-height: 23px; }
+.jello-jj-diff-multi { position: relative; }
 .jello-jj-diff-icon-button > span[aria-hidden] { display: flex; }
-.jello-jj-diff-renderer { --diffs-font-size: 13px; --diffs-line-height: 23px; min-height: 100%; }
+.jello-jj-diff-renderer { min-height: 100%; }
 .jello-jj-diff-empty { padding: 24px; line-height: 1.6; opacity: 0.7; overflow-wrap: anywhere; }
 .jello-jj-diff-muted { padding: 8px; color: var(--jj-diff-muted); }

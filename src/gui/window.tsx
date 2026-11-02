@@ -27,7 +27,7 @@ export const setup: Plugin.Setup<typeof definition> = (ctx) => {
     icon: "extensions",
     title: "Jello",
     entries: [
-      { id: "greeting", title: "Greeting" },
+      { id: "font-size", title: "Diff code font size", description: "Change the code font size in the JJ diff panel.", keywords: "diff code text font size" },
     ],
     render: (input) => <SettingsView highlight={input.target} />,
   })

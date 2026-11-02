@@ -4,6 +4,7 @@ import { usePlugin } from "@opencode/plugin/gui"
 import { diffThemeCSS } from "./theme"
 import { createDiffStack, stackFileIndex } from "./stack"
 import { errorMessage } from "../errors"
+import { normalizeDiffFontSize, type definition } from "../../../gui/definition"
 
 export function MultiFileDiff(props: {
   files: FileDiffMetadata[]
@@ -13,10 +14,12 @@ export function MultiFileDiff(props: {
   navigation: number
   select(index: number): void
 }) {
-  const ctx = usePlugin()
+  const ctx = usePlugin<typeof definition>()
   let container!: HTMLDivElement
   const viewer = new CodeView()
   const items = createDiffStack()
+  const fontSize = () => normalizeDiffFontSize(ctx.stores.jjDiff.value.fontSize)
+  const lineHeight = () => fontSize() + 10
   const initialFile = props.files[props.selected]?.name
   const copyPath = async (path: string) => {
     try {
@@ -45,7 +48,7 @@ export function MultiFileDiff(props: {
       lineDiffType: "word-alt",
       hunkSeparators: "line-info-basic",
       stickyHeaders: true,
-      itemMetrics: { lineHeight: 23, hunkSeparatorHeight: 24, spacing: 0 },
+      itemMetrics: { lineHeight: lineHeight(), hunkSeparatorHeight: 24, spacing: 0 },
       layout: { paddingTop: 0, paddingBottom: 16, gap: 12 },
       unsafeCSS: `${diffThemeCSS(ctx.appearance.mode() === "dark")}
         [data-diffs-header=default] {
@@ -95,5 +98,6 @@ export function MultiFileDiff(props: {
   }))
   onCleanup(() => viewer.cleanUp())
   return <div ref={container} class="jello-jj-diff-content jello-jj-diff-multi" aria-label="All changed file diffs"
-    style={{ "--diffs-font-family": ctx.appearance.font("mono") }} />
+    style={{ "--diffs-font-family": ctx.appearance.font("mono"), "--diffs-font-size": `${fontSize()}px`,
+      "--diffs-line-height": `${lineHeight()}px` }} />
 }

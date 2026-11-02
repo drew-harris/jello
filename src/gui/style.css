@@ -1,5 +1,57 @@
 .jello-settings {
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   gap: 16px;
+  padding: 40px 0 48px;
+}
+
+.jello-settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.jello-settings-field > label {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.jello-settings-field > p {
+  margin: 0;
+  color: var(--text-weak, #777);
+  font-size: 12px;
+}
+
+.jello-settings-number {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.jello-settings-number input {
+  box-sizing: border-box;
+  width: 88px;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--border-base, #d4d4d4);
+  border-radius: 6px;
+  background: var(--input-base, transparent);
+  color: inherit;
+  font: inherit;
+}
+
+.jello-settings-number input:focus-visible {
+  outline: 2px solid var(--border-focus, currentColor);
+  outline-offset: 1px;
+}
+
+.jello-settings-number span {
+  color: var(--text-weak, #777);
+  font-size: 12px;
+}
+
+.jello-settings-field[data-highlight="true"] {
+  border-radius: 6px;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--border-focus, currentColor) 12%, transparent);
 }

@@ -11,7 +11,7 @@ import { revisionAge } from "./time"
 import { diffScrollAmount } from "./shortcuts"
 import { MultiFileDiff } from "./multi-file"
 import { createDiffScroller } from "./scroll"
-import type { definition } from "../../../gui/definition"
+import { normalizeDiffFontSize, type definition } from "../../../gui/definition"
 import type { ViewModels } from "../view-models"
 import { diffSessionKey } from "./navigation"
 import { createDiffModel, type DiffModel } from "./state"
@@ -28,9 +28,11 @@ interface DiffResult {
 }
 
 function DiffFile(props: { file: FileDiffMetadata; layout: "unified" | "split"; wrap: boolean }) {
-  const ctx = usePlugin()
+  const ctx = usePlugin<typeof definition>()
   let container!: HTMLDivElement
   const viewer = new FileDiff()
+  const fontSize = () => normalizeDiffFontSize(ctx.stores.jjDiff.value.fontSize)
+  const lineHeight = () => fontSize() + 10
   createEffect(() => {
     const dark = ctx.appearance.mode() === "dark"
     viewer.setOptions({
@@ -47,7 +49,8 @@ function DiffFile(props: { file: FileDiffMetadata; layout: "unified" | "split"; 
     viewer.render({ fileDiff: props.file, containerWrapper: container })
   })
   onCleanup(() => { viewer.cleanUp(); container.replaceChildren() })
-  return <div class="jello-jj-diff-renderer" style={{ "--diffs-font-family": ctx.appearance.font("mono") }} ref={container} />
+  return <div class="jello-jj-diff-renderer" style={{ "--diffs-font-family": ctx.appearance.font("mono"),
+    "--diffs-font-size": `${fontSize()}px`, "--diffs-line-height": `${lineHeight()}px` }} ref={container} />
 }
 
 function TreeEntry(props: {
