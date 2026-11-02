@@ -40,5 +40,12 @@ export function diffThemeCSS(dark: boolean): string {
   [data-separator] { border-radius: 0; margin-block: 0; }
   [data-separator-wrapper] { border-radius: 0; }
   [data-separator=line-info-basic] { height: 24px; }
-  [data-line-type] { border-radius: 0; }`
+  [data-line-type] { border-radius: 0; }
+  /* Soften only code-row fills; keep gutter, numbers and word emphasis intact. */
+  [data-line][data-line-type=change-addition] {
+    --diffs-bg-addition-override: color-mix(in srgb, var(--diffs-addition-base) 70%, var(--diffs-bg));
+  }
+  [data-line][data-line-type=change-deletion] {
+    --diffs-bg-deletion-override: color-mix(in srgb, var(--diffs-deletion-base) 70%, var(--diffs-bg));
+  }`
 }
