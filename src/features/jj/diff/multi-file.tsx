@@ -1,10 +1,11 @@
 import { CodeView, type FileDiffMetadata } from "@pierre/diffs"
 import { createEffect, on, onCleanup, onMount } from "solid-js"
-import { usePlugin } from "@opencode/plugin/gui"
+import { usePlugin, type SessionScreen } from "@opencode/plugin/gui"
 import { diffThemeCSS } from "./theme"
 import { createDiffStack, stackFileIndex } from "./stack"
 import { errorMessage } from "../errors"
 import { normalizeDiffFontSize, type definition } from "../../../gui/definition"
+import { createDiffComments, type DiffAnnotation } from "./comments"
 
 export function MultiFileDiff(props: {
   files: FileDiffMetadata[]
@@ -13,11 +14,13 @@ export function MultiFileDiff(props: {
   selected: number
   navigation: number
   select(index: number): void
+  screen: SessionScreen
 }) {
   const ctx = usePlugin<typeof definition>()
   let container!: HTMLDivElement
-  const viewer = new CodeView()
-  const items = createDiffStack()
+  const viewer = new CodeView<DiffAnnotation["metadata"]>()
+  const items = createDiffStack<DiffAnnotation["metadata"]>()
+  const comments = createDiffComments(() => props.screen)
   const fontSize = () => normalizeDiffFontSize(ctx.stores.jjDiff.value.fontSize)
   const lineHeight = () => fontSize() + 10
   const initialFile = props.files[props.selected]?.name
@@ -48,6 +51,14 @@ export function MultiFileDiff(props: {
       lineDiffType: "word-alt",
       hunkSeparators: "line-info-basic",
       stickyHeaders: true,
+      enableLineSelection: true,
+      enableGutterUtility: true,
+      onLineSelectionEnd: (range, context) => {
+        if (context.item.type === "diff") comments.open(context.item.fileDiff, range)
+      },
+      // Gutter drags also emit onLineSelectionEnd. Don't attach twice.
+      onGutterUtilityClick: () => {},
+      renderAnnotation: comments.render,
       itemMetrics: { lineHeight: lineHeight(), hunkSeparatorHeight: 24, spacing: 0 },
       layout: { paddingTop: 0, paddingBottom: 16, gap: 12 },
       unsafeCSS: `${diffThemeCSS(ctx.appearance.mode() === "dark")}
@@ -89,7 +100,7 @@ export function MultiFileDiff(props: {
       },
     })
   })
-  createEffect(() => viewer.setItems(items(props.files)))
+  createEffect(() => viewer.setItems(items(props.files, comments.annotations)))
   // Scroll-driven selection only highlights the tree. Explicit file navigation
   // increments this counter, so scrolling never jumps back to a file header.
   createEffect(on(() => props.navigation, (_request, previous) => {

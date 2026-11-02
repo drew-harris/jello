@@ -1,6 +1,6 @@
 import { FileDiff, type FileDiffMetadata } from "@pierre/diffs"
 import { batch, createEffect, createMemo, createSignal, ErrorBoundary, For, on, onCleanup, Show, Suspense } from "solid-js"
-import { usePlugin, type MountedSession } from "@opencode/plugin/gui"
+import { usePlugin, type MountedSession, type SessionScreen } from "@opencode/plugin/gui"
 import type { RevisionDiff } from "./server"
 import { parseDiffTabID, type DiffTabRevision } from "./tab"
 import { errorMessage } from "../errors"
@@ -15,6 +15,7 @@ import { normalizeDiffFontSize, type definition } from "../../../gui/definition"
 import type { ViewModels } from "../view-models"
 import { diffSessionKey } from "./navigation"
 import { createDiffModel, type DiffModel } from "./state"
+import { createDiffComments, type DiffAnnotation } from "./comments"
 
 const fileKind = (file: FileDiffMetadata) => ({ new: "A", deleted: "D", "rename-pure": "R", "rename-changed": "R", change: "M" })[file.type]
 const count = (file: FileDiffMetadata, kind: "additionLines" | "deletionLines") => file.hunks.reduce((total, hunk) => total + hunk[kind], 0)
@@ -27,10 +28,11 @@ interface DiffResult {
   refreshError: string
 }
 
-function DiffFile(props: { file: FileDiffMetadata; layout: "unified" | "split"; wrap: boolean }) {
+function DiffFile(props: { file: FileDiffMetadata; layout: "unified" | "split"; wrap: boolean; screen: SessionScreen }) {
   const ctx = usePlugin<typeof definition>()
   let container!: HTMLDivElement
-  const viewer = new FileDiff()
+  const viewer = new FileDiff<DiffAnnotation["metadata"]>()
+  const comments = createDiffComments(() => props.screen)
   const fontSize = () => normalizeDiffFontSize(ctx.stores.jjDiff.value.fontSize)
   const lineHeight = () => fontSize() + 10
   createEffect(() => {
@@ -44,9 +46,15 @@ function DiffFile(props: { file: FileDiffMetadata; layout: "unified" | "split"; 
       lineDiffType: "word-alt",
       hunkSeparators: "line-info-basic",
       disableFileHeader: true,
+      enableLineSelection: true,
+      enableGutterUtility: true,
+      onLineSelectionEnd: (range) => comments.open(props.file, range),
+      // Gutter drags also emit onLineSelectionEnd. Don't attach twice.
+      onGutterUtilityClick: () => {},
+      renderAnnotation: comments.render,
       unsafeCSS: diffThemeCSS(dark),
     })
-    viewer.render({ fileDiff: props.file, containerWrapper: container })
+    viewer.render({ fileDiff: props.file, containerWrapper: container, lineAnnotations: comments.annotations(props.file) })
   })
   onCleanup(() => { viewer.cleanUp(); container.replaceChildren() })
   return <div class="jello-jj-diff-renderer" style={{ "--diffs-font-family": ctx.appearance.font("mono"),
@@ -88,6 +96,7 @@ function TreeEntry(props: {
 
 interface DiffViewProps {
   session: MountedSession
+  screen: SessionScreen
   tabID: string
   models: ViewModels<DiffModel>
   focusRevision?: number
@@ -159,7 +168,7 @@ export function DiffView(props: DiffViewProps) {
   </div>}>
     <Suspense fallback={<div class="jello-jj-diff-empty" role="status">Loading revision diff…</div>}>
       <Show keyed when={`${diffSessionKey(props.session)}\0${props.tabID}`}>
-        {(key) => <DiffContents session={props.session} tabID={props.tabID} models={props.models} modelKey={key}
+        {(key) => <DiffContents session={props.session} screen={props.screen} tabID={props.tabID} models={props.models} modelKey={key}
           focusRevision={props.focusRevision} requestedFile={props.requestedFile} onRevision={props.onRevision} />}
       </Show>
     </Suspense>
@@ -372,10 +381,10 @@ function DiffContents(props: DiffViewProps & { modelKey: string }) {
               <div class="jello-jj-diff-content"><Show when={file().hunks.length} fallback={<div class="jello-jj-diff-empty">
                 <p>{file().prevName ? `Renamed from ${file().prevName}. ` : ""}No text hunks (binary, rename, empty file, or mode-only change).</p>
                 <Show when={file().prevMode !== file().mode}><p>Mode: {file().prevMode || "none"} → {file().mode || "none"}</p></Show>
-              </div>}><DiffFile file={file()} layout={layout()} wrap={wrap()} /></Show></div>
+              </div>}><DiffFile file={file()} layout={layout()} wrap={wrap()} screen={props.screen} /></Show></div>
             </>}</Show>
             }>
-              <MultiFileDiff files={files()} layout={layout()} wrap={wrap()} selected={selected()} navigation={navigation()} select={setSelected} />
+              <MultiFileDiff files={files()} layout={layout()} wrap={wrap()} selected={selected()} navigation={navigation()} select={setSelected} screen={props.screen} />
             </Show>
           </div>
         </div>

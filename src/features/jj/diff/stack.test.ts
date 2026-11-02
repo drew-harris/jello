@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert"
 import { test } from "node:test"
-import { parsePatchFiles } from "@pierre/diffs"
+import { parsePatchFiles, type DiffLineAnnotation } from "@pierre/diffs"
 import { createDiffStack, stackFileIndex } from "./stack"
 
 const patch = (name: string, after: string) => `diff --git a/${name} b/${name}
@@ -36,4 +36,18 @@ test("stack scrolling identifies the active file using offsets, including empty 
   assert.equal(stackFileIndex(4, top, 150), 1)
   assert.equal(stackFileIndex(4, top, 500), 2)
   assert.equal(stackFileIndex(4, top, 2000), 3)
+})
+
+test("annotations only invalidate the affected stacked file", () => {
+  const stack = createDiffStack<string>()
+  const [a, b] = parse(patch("a.txt", "a") + patch("b.txt", "b"))
+  const empty: DiffLineAnnotation<string>[] = []
+  const initial = stack([a, b], () => empty)
+  const comment = [{ side: "additions", lineNumber: 1, metadata: "check this" }] as const
+  const list = [...comment]
+  const updated = stack([a, b], (file) => file === a ? list : empty)
+  assert.notEqual(updated[0].version, initial[0].version)
+  assert.equal(updated[1].version, initial[1].version)
+  assert.equal(updated[0].annotations, list)
+  assert.equal(stack([a, b], (file) => file === a ? list : empty)[0].version, updated[0].version)
 })

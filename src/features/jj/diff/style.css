@@ -98,3 +98,60 @@
 .jello-jj-diff-renderer { min-height: 100%; }
 .jello-jj-diff-empty { padding: 24px; line-height: 1.6; opacity: 0.7; overflow-wrap: anywhere; }
 .jello-jj-diff-muted { padding: 8px; color: var(--jj-diff-muted); }
+
+/* Annotation renderers are slotted light-DOM children of diffs-container.
+   Shadow-root unsafeCSS cannot style their descendants. */
+.jello-jj-diff .jello-diff-comment {
+  box-sizing: border-box;
+  min-width: 0;
+  margin: 8px 12px;
+  padding: 12px;
+  border: 1px solid var(--jj-diff-border);
+  border-radius: 8px;
+  background: var(--jj-diff-bg);
+  color: var(--jj-diff-fg);
+  font: 13px/1.5 var(--font-family-sans, system-ui, sans-serif);
+  white-space: normal;
+}
+.jello-jj-diff .jello-diff-comment form { margin: 0; }
+.jello-jj-diff .jello-diff-comment textarea {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 80px;
+  padding: 8px;
+  resize: vertical;
+  border: 1px solid var(--jj-diff-border);
+  border-radius: 4px;
+  background: var(--jj-diff-bg);
+  color: inherit;
+  font: inherit;
+}
+.jello-jj-diff .jello-diff-comment textarea:focus-visible {
+  outline: 2px solid var(--border-focus, var(--jj-diff-mod));
+  outline-offset: 1px;
+}
+.jello-jj-diff .jello-diff-comment button {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border: 1px solid var(--jj-diff-border);
+  border-radius: 4px;
+  background: var(--jj-diff-hover);
+  color: inherit;
+  font: inherit;
+}
+.jello-jj-diff .jello-diff-comment button:hover:not(:disabled) { background: var(--jj-diff-selected); }
+.jello-jj-diff .jello-diff-comment button:disabled { opacity: .4; cursor: default; }
+.jello-jj-diff .jello-diff-comment .jello-diff-comment-body {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.jello-jj-diff .jello-diff-comment-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; align-items: center; }
+.jello-jj-diff .jello-diff-comment-actions span { flex: 1; color: var(--jj-diff-muted); font-size: 12px; }

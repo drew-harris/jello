@@ -55,7 +55,7 @@ export const setupDiff: Plugin.Setup<typeof definition> = (ctx) => {
       }
       return [tab]
     }),
-    render: (props) => <DiffView session={props.session} tabID={props.tab.id} models={models}
+    render: (props) => <DiffView session={props.session} screen={props.screen} tabID={props.tab.id} models={models}
       onRevision={(id, revision) => updateRevision(diffSessionKey(props.session), id, revision)}
       requestedFile={focused().id === props.tab.id && focused().session === diffSessionKey(props.session) ? focused().file : undefined}
       focusRevision={focused().id === props.tab.id && focused().session === diffSessionKey(props.session) ? focused().revision : 0} />,

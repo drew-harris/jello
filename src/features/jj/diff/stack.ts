@@ -1,11 +1,16 @@
-import type { CodeViewDiffItem, FileDiffMetadata } from "@pierre/diffs"
+import type { CodeViewDiffItem, DiffLineAnnotation, FileDiffMetadata } from "@pierre/diffs"
 
-export function createDiffStack() {
-  const versions = new WeakMap<FileDiffMetadata, number>()
+export function createDiffStack<Metadata = undefined>() {
+  const versions = new WeakMap<FileDiffMetadata, { version: number; annotations?: DiffLineAnnotation<Metadata>[] }>()
   let version = 0
-  return (files: readonly FileDiffMetadata[]): CodeViewDiffItem[] => files.map((fileDiff) => {
-    if (!versions.has(fileDiff)) versions.set(fileDiff, ++version)
-    return { id: fileDiff.name, type: "diff", fileDiff, version: versions.get(fileDiff)! }
+  return (files: readonly FileDiffMetadata[], annotations?: (file: FileDiffMetadata) => DiffLineAnnotation<Metadata>[]): CodeViewDiffItem<Metadata>[] => files.map((fileDiff) => {
+    const list = annotations?.(fileDiff)
+    let saved = versions.get(fileDiff)
+    if (!saved || saved.annotations !== list) {
+      saved = { version: ++version, annotations: list }
+      versions.set(fileDiff, saved)
+    }
+    return { id: fileDiff.name, type: "diff", fileDiff, version: saved.version, annotations: list }
   })
 }
 
