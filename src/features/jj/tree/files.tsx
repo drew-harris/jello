@@ -4,26 +4,43 @@ import { Status } from "../rpc"
 import { errorMessage } from "../errors"
 import type { ChangedFile } from "../changed-files"
 import { openRevisionDiff } from "../diff/navigation"
+import { repositoryViewKey, type ViewCache } from "../view-cache"
 
-export function RevisionFiles(props: { session: MountedSession; commitID: string; changeID: string; divergent: boolean }) {
+interface RevisionFilesProps {
+  session: MountedSession
+  cache: ViewCache<ChangedFile[]>
+  commitID: string
+  changeID: string
+  divergent: boolean
+}
+
+export function RevisionFiles(props: RevisionFilesProps) {
   // The boundary must mount before the resource is created, otherwise its first
   // read suspends the entire tree panel when an inline file list is expanded.
   return <Suspense fallback={<div class="jello-jj-tree-files">
     <div class="jello-jj-tree-files-state" role="status">Loading files…</div>
   </div>}>
-    <RevisionFileContents session={props.session} commitID={props.commitID} changeID={props.changeID} divergent={props.divergent} />
+    <RevisionFileContents session={props.session} cache={props.cache} commitID={props.commitID} changeID={props.changeID} divergent={props.divergent} />
   </Suspense>
 }
 
-function RevisionFileContents(props: { session: MountedSession; commitID: string; changeID: string; divergent: boolean }) {
+function RevisionFileContents(props: RevisionFilesProps) {
   const ctx = usePlugin()
   const ui = ctx.ui
+  const cacheKey = () => JSON.stringify([repositoryViewKey(props.session.server.id, props.session.directory), props.commitID])
+  const cached = props.cache.get(cacheKey())
   const [files, { refetch }] = createResource(
-    () => ({ directory: props.session.directory, client: props.session.server.client, commitID: props.commitID }),
-    async ({ directory, client, commitID }) => {
-      try { return { files: await client.rpc(Status).revisionFiles({ directory, commitID }) as ChangedFile[], error: "" } }
-      catch (error) { return { files: [] as ChangedFile[], error: errorMessage(error) } }
+    () => ({ directory: props.session.directory, client: props.session.server.client, commitID: props.commitID, key: cacheKey() }),
+    async ({ directory, client, commitID, key }) => {
+      const saved = props.cache.get(key)
+      if (saved) return { files: saved, error: "" }
+      try {
+        const files = await client.rpc(Status).revisionFiles({ directory, commitID }) as ChangedFile[]
+        props.cache.set(key, files)
+        return { files, error: "" }
+      } catch (error) { return { files: [] as ChangedFile[], error: errorMessage(error) } }
     },
+    { initialValue: cached ? { files: cached, error: "" } : undefined },
   )
   const kind = (file: ChangedFile) => file.status === "removed" ? "D" : file.status.slice(0, 1).toUpperCase()
   return <div class="jello-jj-tree-files" role="region" aria-label="Changed files">

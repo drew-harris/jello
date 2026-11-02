@@ -2,7 +2,8 @@ import { Panel, Style, type PanelTab, type Plugin } from "@opencode/plugin/gui"
 import type { definition } from "../../../gui/definition"
 import { diffTabTitle, parseDiffTabID, reusableDiffTab, type DiffTabRevision } from "./tab"
 import { DiffNavigation, diffSessionKey } from "./navigation"
-import { DiffView } from "./view"
+import { DiffView, type DiffViewState } from "./view"
+import { ViewCache } from "../view-cache"
 import css from "./style.css?inline"
 import { registerDiffThemes } from "./theme"
 import { createSignal } from "solid-js"
@@ -11,6 +12,7 @@ export const setupDiff: Plugin.Setup<typeof definition> = (ctx) => {
   registerDiffThemes()
   ctx.add(Style, css)
   const tabs = new Map<string, PanelTab>()
+  const cache = new ViewCache<DiffViewState>()
   const scoped = (session: string, id: string) => `${session}\0${id}`
   const [revisions, setRevisions] = createSignal<Record<string, DiffTabRevision>>({})
   const updateRevision = (session: string, id: string, revision: DiffTabRevision) => {
@@ -52,7 +54,7 @@ export const setupDiff: Plugin.Setup<typeof definition> = (ctx) => {
       }
       return [tab]
     }),
-    render: (props) => <DiffView session={props.session} tabID={props.tab.id}
+    render: (props) => <DiffView session={props.session} tabID={props.tab.id} cache={cache}
       onRevision={(id, revision) => updateRevision(diffSessionKey(props.session), id, revision)}
       requestedFile={focused().id === props.tab.id && focused().session === diffSessionKey(props.session) ? focused().file : undefined}
       focusRevision={focused().id === props.tab.id && focused().session === diffSessionKey(props.session) ? focused().revision : 0} />,
@@ -63,6 +65,7 @@ export const setupDiff: Plugin.Setup<typeof definition> = (ctx) => {
     },
     close: ({ tab, session }) => {
       const key = scoped(diffSessionKey(session), tab.id)
+      cache.delete(key)
       tabs.delete(key)
       setRevisions((previous) => {
         const next = { ...previous }

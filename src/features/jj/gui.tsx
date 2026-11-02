@@ -9,10 +9,14 @@ import { setupDiff } from "./diff/gui"
 import css from "./style.css?inline"
 import treeCSS from "./tree/style.css?inline"
 import type { ChangedFile } from "./changed-files"
+import { ViewCache } from "./view-cache"
+import type { TreeHistory } from "./tree/model"
 
 // All JJ window contributions live here; the Jello shell only composes features.
 export const setupJJ: Plugin.Setup<typeof definition> = (ctx) => {
   setupDiff(ctx)
+  const historyCache = new ViewCache<TreeHistory>()
+  const filesCache = new ViewCache<ChangedFile[]>(100)
   const key = `${ctx.id}:jj`
   const [revision, setRevision] = createSignal(0)
   const [focusRequest, setFocusRequest] = createSignal(0)
@@ -84,7 +88,7 @@ export const setupJJ: Plugin.Setup<typeof definition> = (ctx) => {
       icon: "extensions",
     },
     list: (input) => input.open.includes("jj") ? [tab] : [],
-    render: (props) => <PanelView session={props.session} revision={revision()} focusRequest={focusRequest()} onChanged={() => setRevision((value) => value + 1)} />,
+    render: (props) => <PanelView session={props.session} cache={historyCache} filesCache={filesCache} revision={revision()} focusRequest={focusRequest()} onChanged={() => setRevision((value) => value + 1)} />,
     enter: () => setFocusRequest((value) => value + 1),
   })
   ctx.add(Command, (): Command => ({

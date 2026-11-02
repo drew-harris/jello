@@ -15,6 +15,8 @@ import { diffScrollAmount } from "./shortcuts"
 import { MultiFileDiff } from "./multi-file"
 import { createDiffScroller } from "./scroll"
 import type { definition } from "../../../gui/definition"
+import type { ViewCache } from "../view-cache"
+import { diffSessionKey } from "./navigation"
 
 const fileKind = (file: FileDiffMetadata) => ({ new: "A", deleted: "D", "rename-pure": "R", "rename-changed": "R", change: "M" })[file.type]
 const count = (file: FileDiffMetadata, kind: "additionLines" | "deletionLines") => file.hunks.reduce((total, hunk) => total + hunk[kind], 0)
@@ -25,6 +27,13 @@ interface DiffResult {
   files: FileDiffMetadata[]
   error?: string
   refreshError: string
+}
+
+export interface DiffViewState {
+  result: DiffResult
+  selected: number
+  query: string
+  sidebarWidth: number
 }
 
 function DiffFile(props: { file: FileDiffMetadata; layout: "unified" | "split"; wrap: boolean }) {
@@ -86,6 +95,7 @@ function TreeEntry(props: {
 interface DiffViewProps {
   session: MountedSession
   tabID: string
+  cache: ViewCache<DiffViewState>
   focusRevision?: number
   requestedFile?: string
   onRevision?(id: string, revision: DiffTabRevision): void
@@ -154,15 +164,21 @@ export function DiffView(props: DiffViewProps) {
     <p>{errorMessage(error)}</p><ui.Button onClick={reset}>Retry</ui.Button>
   </div>}>
     <Suspense fallback={<div class="jello-jj-diff-empty" role="status">Loading revision diff…</div>}>
-      <DiffContents session={props.session} tabID={props.tabID} focusRevision={props.focusRevision} requestedFile={props.requestedFile} onRevision={props.onRevision} />
+      <Show keyed when={`${diffSessionKey(props.session)}\0${props.tabID}`}>
+        {(key) => <DiffContents session={props.session} tabID={props.tabID} cache={props.cache} cacheKey={key}
+          focusRevision={props.focusRevision} requestedFile={props.requestedFile} onRevision={props.onRevision} />}
+      </Show>
     </Suspense>
     </ErrorBoundary>
   </section>
 }
 
-function DiffContents(props: DiffViewProps) {
+function DiffContents(props: DiffViewProps & { cacheKey: string }) {
   const ctx = usePlugin<typeof definition>()
   const ui = ctx.ui
+  const cache = props.cache
+  const cacheKey = props.cacheKey
+  const cached = cache.get(cacheKey)
   const preferences = ctx.stores.jjDiff
   const layout = () => preferences.value.layout
   const setLayout = (value: "unified" | "split") => preferences.update((draft) => { draft.layout = value })
@@ -173,7 +189,7 @@ function DiffContents(props: DiffViewProps) {
   const setWrap = (value: boolean) => preferences.update((draft) => { draft.wrap = value })
   const sidebar = () => preferences.value.sidebar
   const setSidebar = (value: boolean) => preferences.update((draft) => { draft.sidebar = value })
-  const [sidebarWidth, setSidebarWidth] = createSignal(240)
+  const [sidebarWidth, setSidebarWidth] = createSignal(cached?.sidebarWidth ?? 240)
   const [resizing, setResizing] = createSignal(false)
   let workspace!: HTMLDivElement
   let sidebarElement!: HTMLElement
@@ -183,19 +199,25 @@ function DiffContents(props: DiffViewProps) {
     const minimum = Math.min(160, available * 0.4)
     setSidebarWidth(Math.round(Math.max(minimum, Math.min(width, available - 160))))
   }
-  const [selected, setSelected] = createSignal(0)
+  const [selected, setSelected] = createSignal(cached?.selected ?? 0)
   const selectFile = (index: number) => batch(() => {
     setSelected(index)
     setNavigation((value) => value + 1)
   })
-  const [query, setQuery] = createSignal("")
+  const [query, setQuery] = createSignal(cached?.query ?? "")
   const [now, setNow] = createSignal(Date.now())
   const clock = setInterval(() => setNow(Date.now()), 60_000)
   onCleanup(() => clearInterval(clock))
   // Refreshes must not read a pending resource under the outer Suspense: that
   // replaces the entire panel with its loading fallback. Publish completed
   // results through signals instead, retaining the mounted view while fetching.
-  const [result, setResult] = createSignal<DiffResult>()
+  const [result, setResult] = createSignal<DiffResult | undefined>(cached?.result)
+  // Save completed data immediately, and capture navigation state on unmount.
+  // Do not cache errors in place of the last successful contents.
+  const save = () => {
+    const value = result()
+    if (value?.data) cache.set(cacheKey, { result: value, selected: selected(), query: query(), sidebarWidth: sidebarWidth() })
+  }
   const [loading, setLoading] = createSignal(true)
   const [slowRefresh, setSlowRefresh] = createSignal(false)
   let slowRefreshTimer: ReturnType<typeof setTimeout> | undefined
@@ -242,6 +264,7 @@ function DiffContents(props: DiffViewProps) {
         setResult({ id, data, files, refreshError: "" })
         props.onRevision?.(id, data.revision)
       })
+      save()
       failures = 0
     } catch (error) {
       if (disposed || request !== generation) return
@@ -289,6 +312,7 @@ function DiffContents(props: DiffViewProps) {
   window.addEventListener("focus", onFocus)
   document.addEventListener("visibilitychange", onFocus)
   onCleanup(() => {
+    save()
     disposed = true
     generation++
     clearTimeout(slowRefreshTimer)

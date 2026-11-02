@@ -15,6 +15,8 @@ import { BookmarkDialog } from "./bookmark-dialog"
 import { treeShortcut } from "./shortcuts"
 import { SquashDialog } from "./squash-dialog"
 import type { SquashDetails } from "./squash-model"
+import { repositoryViewKey, type ViewCache } from "../view-cache"
+import type { ChangedFile } from "../changed-files"
 
 function ChangeID(props: { commit: TreeCommit }) {
   const label = () => changeIDLabel(props.commit)
@@ -23,7 +25,7 @@ function ChangeID(props: { commit: TreeCommit }) {
   </span>
 }
 
-export function TreeView(props: { session: MountedSession; revision: number; focusRequest: number; onChanged(): void }) {
+export function TreeView(props: { session: MountedSession; cache: ViewCache<TreeHistory>; filesCache: ViewCache<ChangedFile[]>; revision: number; focusRequest: number; onChanged(): void }) {
   const ctx = usePlugin<typeof definition>()
   const ui = ctx.ui
   let panel!: HTMLDivElement
@@ -75,15 +77,20 @@ export function TreeView(props: { session: MountedSession; revision: number; foc
   const mutating = () => abandoning() || creating() || editing() || squashing() || pushing()
   const [contextMenu, setContextMenu] = createSignal<{ x: number; y: number; commit: TreeCommit; trigger: HTMLButtonElement }>()
   const buttons = new Map<string, HTMLButtonElement>()
+  const cacheKey = () => JSON.stringify([repositoryViewKey(props.session.server.id, props.session.directory), limit()])
+  const cached = props.cache.get(cacheKey())
   const [history, { refetch }] = createResource(
-    () => ({ client: props.session.server.client, directory: props.session.directory, limit: limit(), revision: props.revision }),
-    async ({ client, directory, limit }) => {
+    () => ({ client: props.session.server.client, directory: props.session.directory, limit: limit(), revision: props.revision, key: cacheKey() }),
+    async ({ client, directory, limit, key }) => {
       try {
-        return { data: await client.rpc(Status).tree({ directory, limit }) as TreeHistory, error: "" }
+        const data = await client.rpc(Status).tree({ directory, limit }) as TreeHistory
+        props.cache.set(key, data)
+        return { data, error: "" }
       } catch (error) {
-        return { data: undefined, error: errorMessage(error) }
+        return { data: props.cache.get(key), error: errorMessage(error) }
       }
     },
+    { initialValue: cached ? { data: cached, error: "" } : undefined },
   )
   const commits = () => history.latest?.data?.commits ?? []
   const [graphState, setGraph] = createStore<ReturnType<typeof layoutHistory>>({ rows: [], lanes: 1 })
@@ -471,7 +478,7 @@ export function TreeView(props: { session: MountedSession; revision: number; foc
                   </span>
                 </button>
                 <Show when={expanded().has(row.commit.changeID)}>
-                  <RevisionFiles session={props.session} commitID={row.commit.commitID} changeID={row.commit.changeID} divergent={row.commit.divergent} />
+                  <RevisionFiles session={props.session} cache={props.filesCache} commitID={row.commit.commitID} changeID={row.commit.changeID} divergent={row.commit.divergent} />
                 </Show>
               </li>}</For>
             </ol>
