@@ -27,10 +27,6 @@ export const setupJJ: Plugin.Setup<typeof definition> = (ctx) => {
     ctx.layout.open(key, session)
     setFocusRequest((value) => value + 1)
   }
-  const toggle = () => {
-    const session = ctx.sessions.current()
-    if (session) ctx.layout.toggle(key, session)
-  }
 
   ctx.add(Command, (): Command => ({
     id: "jj.commit",
@@ -113,14 +109,6 @@ export const setupJJ: Plugin.Setup<typeof definition> = (ctx) => {
     enabled: !!ctx.sessions.current(),
     run: open,
   }))
-  ctx.add(Command, (): Command => ({
-    id: "jj.toggle",
-    title: "Toggle JJ Tree panel",
-    group: "JJ",
-    section: "session",
-    enabled: !!ctx.sessions.current(),
-    run: toggle,
-  }))
   ctx.add(MenuItem, (): MenuItem => {
     const session = ctx.sessions.current()
     return {
@@ -128,7 +116,7 @@ export const setupJJ: Plugin.Setup<typeof definition> = (ctx) => {
       id: "jj.open",
       title: "JJ Tree",
       icon: "extensions",
-      keybind: `${ctx.id}.jj.toggle`,
+      keybind: `${ctx.id}.jj.open`,
       opened: !!session && ctx.layout.state(key, session) !== "closed",
       run: open,
     }
