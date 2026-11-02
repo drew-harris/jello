@@ -32,7 +32,7 @@ function DiffFile(props: { file: FileDiffMetadata; layout: "unified" | "split"; 
   const ctx = usePlugin<typeof definition>()
   let container!: HTMLDivElement
   const viewer = new FileDiff<DiffAnnotation["metadata"]>()
-  const comments = createDiffComments(() => props.screen)
+  const comments = createDiffComments(() => props.screen, () => viewer.setSelectedLines(null))
   const fontSize = () => normalizeDiffFontSize(ctx.stores.jjDiff.value.fontSize)
   const lineHeight = () => fontSize() + 10
   createEffect(() => {
@@ -47,10 +47,8 @@ function DiffFile(props: { file: FileDiffMetadata; layout: "unified" | "split"; 
       hunkSeparators: "line-info-basic",
       disableFileHeader: true,
       enableLineSelection: true,
-      enableGutterUtility: true,
+      enableGutterUtility: false,
       onLineSelectionEnd: (range) => comments.open(props.file, range),
-      // Gutter drags also emit onLineSelectionEnd. Don't attach twice.
-      onGutterUtilityClick: () => {},
       renderAnnotation: comments.render,
       unsafeCSS: diffThemeCSS(dark),
     })

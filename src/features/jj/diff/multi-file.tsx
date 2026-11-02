@@ -20,7 +20,7 @@ export function MultiFileDiff(props: {
   let container!: HTMLDivElement
   const viewer = new CodeView<DiffAnnotation["metadata"]>()
   const items = createDiffStack<DiffAnnotation["metadata"]>()
-  const comments = createDiffComments(() => props.screen)
+  const comments = createDiffComments(() => props.screen, () => viewer.setSelectedLines(null))
   const fontSize = () => normalizeDiffFontSize(ctx.stores.jjDiff.value.fontSize)
   const lineHeight = () => fontSize() + 10
   const initialFile = props.files[props.selected]?.name
@@ -52,12 +52,10 @@ export function MultiFileDiff(props: {
       hunkSeparators: "line-info-basic",
       stickyHeaders: true,
       enableLineSelection: true,
-      enableGutterUtility: true,
+      enableGutterUtility: false,
       onLineSelectionEnd: (range, context) => {
         if (context.item.type === "diff") comments.open(context.item.fileDiff, range)
       },
-      // Gutter drags also emit onLineSelectionEnd. Don't attach twice.
-      onGutterUtilityClick: () => {},
       renderAnnotation: comments.render,
       itemMetrics: { lineHeight: lineHeight(), hunkSeparatorHeight: 24, spacing: 0 },
       layout: { paddingTop: 0, paddingBottom: 16, gap: 12 },

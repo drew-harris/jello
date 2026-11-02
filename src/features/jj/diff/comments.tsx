@@ -9,7 +9,7 @@ type Metadata = { kind: "saved"; value: Comment } | { kind: "draft"; value: Draf
 export type DiffAnnotation = DiffLineAnnotation<Metadata>
 const empty: DiffAnnotation[] = []
 
-export function createDiffComments(screen: Accessor<SessionScreen>) {
+export function createDiffComments(screen: Accessor<SessionScreen>, clearSelection: () => void) {
   const [draft, setDraft] = createSignal<Draft>()
   const nodes = new Map<string, { host: HTMLElement; dispose(): void; set(meta: Metadata): void }>()
   const cached = new WeakMap<Comment | Draft, DiffAnnotation>()
@@ -48,7 +48,23 @@ export function createDiffComments(screen: Accessor<SessionScreen>) {
     }
   })
   onCleanup(() => { for (const node of nodes.values()) node.dispose(); nodes.clear() })
-  const cancel = () => setDraft(undefined)
+  const cancel = () => {
+    setDraft(undefined)
+    clearSelection()
+  }
+  createEffect(() => {
+    const pending = draft()
+    if (!pending) return
+    const dismiss = (event: PointerEvent) => {
+      const host = nodes.get(pending.id)?.host
+      // Slotted annotations cross Pierre's shadow boundary. Use the composed
+      // path so clicks in the editor or its buttons never dismiss the draft.
+      if (host && event.composedPath().includes(host)) return
+      cancel()
+    }
+    document.addEventListener("pointerdown", dismiss, true)
+    onCleanup(() => document.removeEventListener("pointerdown", dismiss, true))
+  })
   return {
     annotations: (file: FileDiffMetadata) => byFile().get(file.name) ?? empty,
     open(file: FileDiffMetadata, range: SelectedLineRange | null) {
