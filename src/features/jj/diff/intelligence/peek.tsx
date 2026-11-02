@@ -8,6 +8,16 @@ import { SymbolContextMenu } from "./context-menu"
 import { PeekCode } from "./preview-code"
 import { localDefinition } from "./jump"
 
+function restoreDiffFocus(element: HTMLElement | undefined) {
+  // CodeView makes its scroll canvas focusable. Returning keyboard focus to
+  // that clipped canvas produces a browser-sized ring around the entire diff.
+  // Keep real controls as focus targets; route canvas focus to the panel instead.
+  const control = element?.matches("button, a, input, textarea, select, [contenteditable=true]")
+  const panel = !control ? element?.closest<HTMLElement>(".jello-jj-diff") : undefined
+  const target = panel ?? element
+  if (target?.isConnected) target.focus({ preventScroll: true })
+}
+
 export function createCodePeek(session: Accessor<MountedSession>, revision: Accessor<string>, current: Accessor<boolean>) {
   const [target, setTarget] = createSignal<SymbolPosition>()
   const [definition, setDefinition] = createSignal<PeekLocation>()
@@ -22,7 +32,7 @@ export function createCodePeek(session: Accessor<MountedSession>, revision: Acce
   let targetSide: DiffTokenEventBaseProps["side"] | undefined
   const closeMenu = (restoreFocus = false) => {
     setMenu(undefined)
-    if (restoreFocus && menuReturnFocus?.isConnected) menuReturnFocus.focus({ preventScroll: true })
+    if (restoreFocus) restoreDiffFocus(menuReturnFocus)
   }
   const [unavailable, setUnavailable] = createSignal("")
   const [kind, setKind] = createSignal<PeekKind>("definition")
@@ -62,7 +72,7 @@ export function createCodePeek(session: Accessor<MountedSession>, revision: Acce
   const close = () => {
     cancel()
     setOpened(false)
-    if (returnFocus?.isConnected) returnFocus.focus({ preventScroll: true })
+    restoreDiffFocus(returnFocus)
   }
   // Polling replaces result objects even when the commit is unchanged. Memoize
   // the primitive identity so those refreshes never dismiss an active peek.
@@ -190,6 +200,10 @@ export function createCodePeek(session: Accessor<MountedSession>, revision: Acce
     event.preventDefault()
     event.stopPropagation()
     if (token.side !== targetSide || target()?.line !== position.line || target()?.character !== position.character || target()?.path !== path) choose(position, token)
+    if ((event.metaKey || event.ctrlKey) && !unavailable()) {
+      void open("references")
+      return
+    }
     menuReturnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : undefined
     setMenu({ x: event.clientX, y: event.clientY })
   }

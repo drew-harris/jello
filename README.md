@@ -132,6 +132,7 @@ Right-click a TypeScript/JavaScript symbol on the working-copy side, then choose
 selected, **F12** peeks its definition and **Shift+F12** peeks references;
 **Shift+F10** or the context-menu key opens its menu.
 **Cmd/Ctrl-click** opens a definition peek directly; add **Shift** for references.
+**Cmd/Ctrl-right-click** opens references directly, skipping the context menu.
 Both actions open a read-only pane below the diff, without navigating away or
 resetting its scroll position. Select a result to preview syntax-highlighted source
 using the diff's light/dark palette, with the target symbol emphasized. When there

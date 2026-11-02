@@ -131,8 +131,10 @@ export function createOccurrenceHighlights(peek: CodePeek) {
     roots.clear()
   })
   return {
-    css: `:host { position: relative; }
-      .jello-symbol-outlines { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 2; }
+    // Keep overlays inside their file's stacking context, above the code but
+    // below Pierre's sticky headers (z-index 1/2).
+    css: `:host { position: relative; isolation: isolate; }
+      .jello-symbol-outlines { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
       .jello-symbol-outline { position: absolute; box-sizing: border-box; border: 1px solid rgb(198 155 36 / 55%); border-radius: 3px; background: rgb(235 191 55 / 12%); }
       .jello-symbol-outline.is-active { border-color: rgb(198 155 36 / 75%); background: rgb(235 191 55 / 18%); }`,
     rendered(node: HTMLElement, path: string, phase: string) {
