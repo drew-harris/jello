@@ -1,22 +1,20 @@
-import { FileDiff, parsePatchFiles, type FileDiffMetadata } from "@pierre/diffs"
+import { FileDiff, type FileDiffMetadata } from "@pierre/diffs"
 import { batch, createEffect, createMemo, createSignal, ErrorBoundary, For, on, onCleanup, Show, Suspense } from "solid-js"
 import { usePlugin, type MountedSession } from "@opencode/plugin/gui"
-import { Status } from "../rpc"
 import type { RevisionDiff } from "./server"
-import { diffFileIndex, parseDiffTabID, type DiffTabRevision } from "./tab"
+import { parseDiffTabID, type DiffTabRevision } from "./tab"
 import { errorMessage } from "../errors"
 import { buildFileTree, type FileTreeNode } from "./tree"
 import { DiffIcon, FileIcon } from "./icons"
 import { diffThemeCSS } from "./theme"
 import { revisionAge } from "./time"
-import { DIFF_POLL_INTERVAL, diffPollDelay } from "./poll"
-import { reuseDiffFiles } from "./files"
 import { diffScrollAmount } from "./shortcuts"
 import { MultiFileDiff } from "./multi-file"
 import { createDiffScroller } from "./scroll"
 import type { definition } from "../../../gui/definition"
-import type { ViewCache } from "../view-cache"
+import type { ViewModels } from "../view-models"
 import { diffSessionKey } from "./navigation"
+import { createDiffModel, type DiffModel } from "./state"
 
 const fileKind = (file: FileDiffMetadata) => ({ new: "A", deleted: "D", "rename-pure": "R", "rename-changed": "R", change: "M" })[file.type]
 const count = (file: FileDiffMetadata, kind: "additionLines" | "deletionLines") => file.hunks.reduce((total, hunk) => total + hunk[kind], 0)
@@ -27,13 +25,6 @@ interface DiffResult {
   files: FileDiffMetadata[]
   error?: string
   refreshError: string
-}
-
-export interface DiffViewState {
-  result: DiffResult
-  selected: number
-  query: string
-  sidebarWidth: number
 }
 
 function DiffFile(props: { file: FileDiffMetadata; layout: "unified" | "split"; wrap: boolean }) {
@@ -95,7 +86,7 @@ function TreeEntry(props: {
 interface DiffViewProps {
   session: MountedSession
   tabID: string
-  cache: ViewCache<DiffViewState>
+  models: ViewModels<DiffModel>
   focusRevision?: number
   requestedFile?: string
   onRevision?(id: string, revision: DiffTabRevision): void
@@ -165,7 +156,7 @@ export function DiffView(props: DiffViewProps) {
   </div>}>
     <Suspense fallback={<div class="jello-jj-diff-empty" role="status">Loading revision diff…</div>}>
       <Show keyed when={`${diffSessionKey(props.session)}\0${props.tabID}`}>
-        {(key) => <DiffContents session={props.session} tabID={props.tabID} cache={props.cache} cacheKey={key}
+        {(key) => <DiffContents session={props.session} tabID={props.tabID} models={props.models} modelKey={key}
           focusRevision={props.focusRevision} requestedFile={props.requestedFile} onRevision={props.onRevision} />}
       </Show>
     </Suspense>
@@ -173,12 +164,10 @@ export function DiffView(props: DiffViewProps) {
   </section>
 }
 
-function DiffContents(props: DiffViewProps & { cacheKey: string }) {
+function DiffContents(props: DiffViewProps & { modelKey: string }) {
   const ctx = usePlugin<typeof definition>()
   const ui = ctx.ui
-  const cache = props.cache
-  const cacheKey = props.cacheKey
-  const cached = cache.get(cacheKey)
+  const model = props.models.use(props.modelKey, () => createDiffModel(props.tabID))
   const preferences = ctx.stores.jjDiff
   const layout = () => preferences.value.layout
   const setLayout = (value: "unified" | "split") => preferences.update((draft) => { draft.layout = value })
@@ -189,7 +178,7 @@ function DiffContents(props: DiffViewProps & { cacheKey: string }) {
   const setWrap = (value: boolean) => preferences.update((draft) => { draft.wrap = value })
   const sidebar = () => preferences.value.sidebar
   const setSidebar = (value: boolean) => preferences.update((draft) => { draft.sidebar = value })
-  const [sidebarWidth, setSidebarWidth] = createSignal(cached?.sidebarWidth ?? 240)
+  const { sidebarWidth, setSidebarWidth, selected, setSelected, query, setQuery } = model
   const [resizing, setResizing] = createSignal(false)
   let workspace!: HTMLDivElement
   let sidebarElement!: HTMLElement
@@ -199,103 +188,49 @@ function DiffContents(props: DiffViewProps & { cacheKey: string }) {
     const minimum = Math.min(160, available * 0.4)
     setSidebarWidth(Math.round(Math.max(minimum, Math.min(width, available - 160))))
   }
-  const [selected, setSelected] = createSignal(cached?.selected ?? 0)
   const selectFile = (index: number) => batch(() => {
     setSelected(index)
     setNavigation((value) => value + 1)
   })
-  const [query, setQuery] = createSignal(cached?.query ?? "")
   const [now, setNow] = createSignal(Date.now())
   const clock = setInterval(() => setNow(Date.now()), 60_000)
   onCleanup(() => clearInterval(clock))
-  // Refreshes must not read a pending resource under the outer Suspense: that
-  // replaces the entire panel with its loading fallback. Publish completed
-  // results through signals instead, retaining the mounted view while fetching.
-  const [result, setResult] = createSignal<DiffResult | undefined>(cached?.result)
-  // Save completed data immediately, and capture navigation state on unmount.
-  // Do not cache errors in place of the last successful contents.
-  const save = () => {
-    const value = result()
-    if (value?.data) cache.set(cacheKey, { result: value, selected: selected(), query: query(), sidebarWidth: sidebarWidth() })
-  }
-  const [loading, setLoading] = createSignal(true)
+  // createLatest never suspends and retains the last successful result. Both
+  // the request and navigation signals outlive this mounted panel.
+  const loading = () => model.result.loading
+  const result = createMemo<DiffResult | undefined>(() => {
+    const latest = model.result.latest
+    const error = model.result.error ? errorMessage(model.result.error) : ""
+    if (!latest && !error) return undefined
+    return { id: props.tabID, data: latest?.data, files: latest?.files ?? [],
+      error: latest ? undefined : error, refreshError: latest ? error : "" }
+  })
   const [slowRefresh, setSlowRefresh] = createSignal(false)
-  let slowRefreshTimer: ReturnType<typeof setTimeout> | undefined
-  let generation = 0
   let disposed = false
-  let failures = 0
-  let nextDelay = DIFF_POLL_INTERVAL
-  let lastFinished = 0
   let poll: ReturnType<typeof setTimeout> | undefined
   const schedule = () => {
     clearTimeout(poll)
-    if (!disposed && result()?.data?.revision.current) poll = setTimeout(() => refresh(), nextDelay)
+    if (!disposed && result()?.data?.revision.current) poll = setTimeout(() => refresh(), model.nextDelay())
   }
-  const load = async (id: string, client: MountedSession["server"]["client"]) => {
-    const request = ++generation
-    const started = Date.now()
-    clearTimeout(poll)
-    const previous = result()?.id === id ? result() : undefined
-    clearTimeout(slowRefreshTimer)
+  createEffect(on(loading, (pending) => {
     setSlowRefresh(false)
-    slowRefreshTimer = setTimeout(() => {
-      if (!disposed && request === generation) setSlowRefresh(true)
-    }, 3_000)
-    setLoading(true)
-    try {
-      const target = parseDiffTabID(id)
-      if (!target) throw new Error("Invalid diff tab")
-      const knownCommitID = previous?.data?.revision.commitID
-      const changeID = target.changeID ?? (!previous?.data?.revision.divergent ? previous?.data?.revision.fullChangeID : undefined)
-      const update = await client.rpc(Status).diff({ directory: target.directory,
-        ...(changeID ? { changeID } : { commitID: knownCommitID ?? target.commitID }),
-        ...(knownCommitID ? { knownCommitID } : {}) }) as RevisionDiff
-      if (disposed || request !== generation) return
-      if (update.unchanged && !previous?.data) throw new Error("Missing cached diff. Refresh to load it again.")
-      const data = update.unchanged ? { ...update, patch: previous!.data!.patch } : update
-      const files = previous?.data?.patch === data.patch ? previous.files
-        : reuseDiffFiles(previous?.files ?? [], parsePatchFiles(data.patch, `${target.directory}:${data.revision.commitID}`, true).flatMap((patch) => patch.files))
-      const path = previous?.files[selected()]?.name
-      const index = path ? diffFileIndex(files, path) : -1
-      // Publish selection and data together so inserted files cannot briefly
-      // display the wrong diff before selection is corrected in an effect.
-      batch(() => {
-        setSelected(index >= 0 ? index : diffFileIndex(files, props.requestedFile ?? target.file))
-        setResult({ id, data, files, refreshError: "" })
-        props.onRevision?.(id, data.revision)
-      })
-      save()
-      failures = 0
-    } catch (error) {
-      if (disposed || request !== generation) return
-      failures++
-      setResult(previous?.data ? { ...previous, refreshError: errorMessage(error) }
-        : { id, files: [], error: errorMessage(error), refreshError: "" })
-    } finally {
-      if (!disposed && request === generation) {
-        clearTimeout(slowRefreshTimer)
-        setSlowRefresh(false)
-        lastFinished = Date.now()
-        nextDelay = diffPollDelay(lastFinished - started, failures)
-        setLoading(false)
-        schedule()
-      }
-    }
-  }
-  const refetch = () => {
-    if (!loading()) void load(props.tabID, props.session.server.client)
-  }
-  createEffect(on([() => props.tabID, () => props.session.server.client], ([id, client]) => {
-    failures = 0
-    void load(id, client)
+    if (pending) {
+      clearTimeout(poll)
+      const timer = setTimeout(() => setSlowRefresh(true), 3_000)
+      onCleanup(() => clearTimeout(timer))
+    } else schedule()
   }))
+  const refetch = model.refresh
+  createEffect(() => model.configure(props.session.server.client))
+  createEffect(() => {
+    const revision = model.result.latest?.data.revision
+    if (revision) props.onRevision?.(props.tabID, revision)
+  })
   createEffect(on([() => props.tabID, () => props.focusRevision, () => props.requestedFile], () => {
     const target = parseDiffTabID(props.tabID)
     const path = props.requestedFile ?? target?.file
     if (!path) return
-    const loaded = result()
-    if (loaded?.id !== props.tabID) return
-    setSelected(diffFileIndex(loaded.files, path))
+    model.selectPath(path)
     setNavigation((value) => value + 1)
     setQuery("")
   }))
@@ -305,17 +240,14 @@ function DiffContents(props: DiffViewProps & { cacheKey: string }) {
     if (loading()) return
     if (document.hidden || !workspace?.isConnected || !workspace.getClientRects().length) { schedule(); return }
     // Coalesce focus/tab/visibility events with polling, including error backoff.
-    if (!force && Date.now() - lastFinished < nextDelay) { schedule(); return }
+    if (!force && Date.now() - model.lastFinished() < model.nextDelay()) { schedule(); return }
     if (force || active()?.data?.revision.current) refetch()
   }
   const onFocus = () => refresh()
   window.addEventListener("focus", onFocus)
   document.addEventListener("visibilitychange", onFocus)
   onCleanup(() => {
-    save()
     disposed = true
-    generation++
-    clearTimeout(slowRefreshTimer)
     clearTimeout(poll)
     window.removeEventListener("focus", onFocus)
     document.removeEventListener("visibilitychange", onFocus)
@@ -324,7 +256,7 @@ function DiffContents(props: DiffViewProps & { cacheKey: string }) {
     // The host makes a cached tab visible after its focus callback.
     const frame = requestAnimationFrame(() => refresh(!active()?.data?.revision.current))
     onCleanup(() => cancelAnimationFrame(frame))
-  }, { defer: true }))
+  }))
   const file = () => files()[selected()]
   const tree = createMemo(() => buildFileTree(files(), query()))
   const totals = createMemo(() => files().reduce((total, file) => ({ added: total.added + count(file, "additionLines"), deleted: total.deleted + count(file, "deletionLines") }), { added: 0, deleted: 0 }))

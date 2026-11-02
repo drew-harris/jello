@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createResource, createSignal, For, on, onCleanup, Show } from "solid-js"
+import { createEffect, createMemo, createSignal, For, on, onCleanup, Show } from "solid-js"
 import { createStore, reconcile } from "solid-js/store"
 import { usePlugin, type MountedSession } from "@opencode/plugin/gui"
 import { Status } from "../rpc"
@@ -6,7 +6,7 @@ import { errorMessage } from "../errors"
 import { openRevisionDiff } from "../diff/navigation"
 import { revisionAge } from "../diff/time"
 import { edgePath, graphRowID, laneX, layoutHistory, rowOffsets, ROW_HEIGHT } from "./layout"
-import { changeIDLabel, type TreeCommit, type TreeHistory } from "./model"
+import { changeIDLabel, type TreeCommit } from "./model"
 import { ChangeContextMenu } from "./context-menu"
 import { DescribeDialog } from "./describe-dialog"
 import type { definition } from "../../../gui/definition"
@@ -15,8 +15,8 @@ import { BookmarkDialog } from "./bookmark-dialog"
 import { treeShortcut } from "./shortcuts"
 import { SquashDialog } from "./squash-dialog"
 import type { SquashDetails } from "./squash-model"
-import { repositoryViewKey, type ViewCache } from "../view-cache"
-import type { ChangedFile } from "../changed-files"
+import { repositoryViewKey, type ViewModels } from "../view-models"
+import { createHistoryModel, type HistoryModel, type RevisionFilesModel } from "./state"
 
 function ChangeID(props: { commit: TreeCommit }) {
   const label = () => changeIDLabel(props.commit)
@@ -25,7 +25,7 @@ function ChangeID(props: { commit: TreeCommit }) {
   </span>
 }
 
-export function TreeView(props: { session: MountedSession; cache: ViewCache<TreeHistory>; filesCache: ViewCache<ChangedFile[]>; revision: number; focusRequest: number; onChanged(): void }) {
+export function TreeView(props: { session: MountedSession; models: ViewModels<HistoryModel>; filesModels: ViewModels<RevisionFilesModel>; revision: number; focusRequest: number; onChanged(): void }) {
   const ctx = usePlugin<typeof definition>()
   const ui = ctx.ui
   let panel!: HTMLDivElement
@@ -77,22 +77,12 @@ export function TreeView(props: { session: MountedSession; cache: ViewCache<Tree
   const mutating = () => abandoning() || creating() || editing() || squashing() || pushing()
   const [contextMenu, setContextMenu] = createSignal<{ x: number; y: number; commit: TreeCommit; trigger: HTMLButtonElement }>()
   const buttons = new Map<string, HTMLButtonElement>()
-  const cacheKey = () => JSON.stringify([repositoryViewKey(props.session.server.id, props.session.directory), limit()])
-  const cached = props.cache.get(cacheKey())
-  const [history, { refetch }] = createResource(
-    () => ({ client: props.session.server.client, directory: props.session.directory, limit: limit(), revision: props.revision, key: cacheKey() }),
-    async ({ client, directory, limit, key }) => {
-      try {
-        const data = await client.rpc(Status).tree({ directory, limit }) as TreeHistory
-        props.cache.set(key, data)
-        return { data, error: "" }
-      } catch (error) {
-        return { data: props.cache.get(key), error: errorMessage(error) }
-      }
-    },
-    { initialValue: cached ? { data: cached, error: "" } : undefined },
-  )
-  const commits = () => history.latest?.data?.commits ?? []
+  const model = props.models.use(repositoryViewKey(props.session.server.id, props.session.directory),
+    () => createHistoryModel(props.session.directory))
+  const history = model.history
+  const refetch = model.refresh
+  createEffect(() => model.configure(props.session.server.client, limit(), props.revision))
+  const commits = () => history.latest?.commits ?? []
   const [graphState, setGraph] = createStore<ReturnType<typeof layoutHistory>>({ rows: [], lanes: 1 })
   // Retain keyed row/component identities when polling returns fresh objects.
   // This keeps expanded resources mounted and their existing file lists visible.
@@ -382,13 +372,13 @@ export function TreeView(props: { session: MountedSession; cache: ViewCache<Tree
       </button>
       </div>
     </header>
-    <Show when={history.latest?.error}>
-      <div class="jello-jj-tree-empty" role="alert"><strong>History unavailable</strong><p>{history.latest?.error}</p><button type="button" onClick={refresh}>Retry</button></div>
+    <Show when={history.error}>
+      <div class="jello-jj-tree-empty" role="alert"><strong>History unavailable</strong><p>{errorMessage(history.error)}</p><button type="button" onClick={refresh}>Retry</button></div>
     </Show>
     <Show when={history.loading && !history.latest}>
       <div class="jello-jj-tree-empty" role="status">Loading history…</div>
     </Show>
-    <Show when={history.latest?.data}>
+    <Show when={history.latest}>
       <div class="jello-jj-tree-scroll" aria-busy={history.loading}>
         <Show when={commits().length} fallback={<div class="jello-jj-tree-empty">No revisions in the configured log view.</div>}>
           <div class="jello-jj-tree-history" style={{ "--tree-gutter": `${gutter()}px`, "--tree-row-height": `${ROW_HEIGHT}px`, "min-width": `${gutter() + 220}px` }}>
@@ -478,14 +468,14 @@ export function TreeView(props: { session: MountedSession; cache: ViewCache<Tree
                   </span>
                 </button>
                 <Show when={expanded().has(row.commit.changeID)}>
-                  <RevisionFiles session={props.session} cache={props.filesCache} commitID={row.commit.commitID} changeID={row.commit.changeID} divergent={row.commit.divergent} />
+                  <RevisionFiles session={props.session} models={props.filesModels} commitID={row.commit.commitID} changeID={row.commit.changeID} divergent={row.commit.divergent} />
                 </Show>
               </li>}</For>
             </ol>
           </div>
         </Show>
         <footer class="jello-jj-tree-tail">
-          <Show when={history.latest?.data?.hasMore} fallback={<span>End of log view</span>}>
+          <Show when={history.latest?.hasMore} fallback={<span>End of log view</span>}>
             <button type="button" disabled={history.loading || limit() >= 2000} onClick={() => setLimit((value) => Math.min(2000, value + 100))}>
               {history.loading ? "Loading…" : limit() >= 2000 ? "Showing first 2,000 revisions" : "Load more revisions"}
             </button>
