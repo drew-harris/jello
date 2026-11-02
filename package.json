@@ -1,6 +1,6 @@
 {
   "name": "opencode-jello",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Jello: an OpenCode Desktop GUI plugin.",
   "type": "module",
   "keywords": [
