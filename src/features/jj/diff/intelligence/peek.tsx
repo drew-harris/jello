@@ -9,6 +9,7 @@ import { CodePeekPanel as PeekPanel } from "../../../intelligence/peek-panel"
 import { localDefinition } from "./jump"
 import { createLanguageRestart } from "../../../intelligence/restart"
 import { createLanguageClient } from "../../../intelligence/client"
+import { createFileChangeProvider } from "./file-changes"
 
 function restoreDiffFocus(element: HTMLElement | undefined) {
   // CodeView makes its scroll canvas focusable. Returning keyboard focus to
@@ -23,6 +24,7 @@ function restoreDiffFocus(element: HTMLElement | undefined) {
 export function createCodePeek(session: Accessor<MountedSession>, revision: Accessor<string>, current: Accessor<boolean>) {
   const ctx = usePlugin()
   const client = createLanguageClient(session)
+  const fileChanges = createFileChangeProvider(session)
   const languageRestart = createLanguageRestart(ctx)
   const restarting = languageRestart.pending
   const [target, setTarget] = createSignal<SymbolPosition>()
@@ -220,7 +222,7 @@ export function createCodePeek(session: Accessor<MountedSession>, revision: Acce
     event.stopPropagation()
     void open(event.shiftKey ? "references" : "definition")
   }
-  return { client, target, unavailable, kind, opened, loading, error, result, open, close, click, keydown,
+  return { client, fileChanges, target, unavailable, kind, opened, loading, error, result, open, close, click, keydown,
     menu, closeMenu, contextmenu, definition, registerDefinitionJump, restart, restarting,
     occurrences, highlightLoading, highlightError }
 }

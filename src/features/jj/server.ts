@@ -12,9 +12,14 @@ import { listBookmarks, setBookmark } from "./tree/bookmarks.ts"
 import { editChange } from "./tree/edit.ts"
 import { readSquashDetails, squashBelow } from "./tree/squash.ts"
 import { pushChange } from "./tree/push.ts"
+import { readFileChanges } from "./file-changes.ts"
 
 export async function setupJJ(ctx: Plugin.Context) {
   await ctx.rpc.register(Status, {
+    fileChanges: async (input, context) => {
+      const { directory, path } = input as { directory: string; path: string }
+      return readFileChanges(directory, path, context.signal)
+    },
     diffContext: async (input, context) => {
       const { directory, commitID, path } = input as { directory: string; commitID: string; path: string }
       return readDiffContext(directory, commitID, path, context.signal)

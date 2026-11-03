@@ -3,14 +3,39 @@ import { errorMessage } from "../../shared/errors"
 import type { LanguageClient } from "./client"
 import type { PeekLocation, PeekResult, SourceDocument, SymbolPosition } from "./rpc"
 import { navigationQueries, type FileQuery } from "./queries"
+import type { FileChangeProvider, FileChanges } from "./file-changes"
 
 export interface FileResults extends PeekResult { label: string }
 interface Visit { location: PeekLocation; results?: FileResults }
 
 // Read-only source navigation, independent of a diff, a peek pane or the host.
 // Documents are fetched once per visit/cache miss, never on a polling timer.
-export function createFileViewModel(client: LanguageClient) {
+export function createFileViewModel(client: LanguageClient, changeProvider?: FileChangeProvider) {
   const cache = new Map<string, SourceDocument>()
+  const changeCache = new WeakMap<SourceDocument, FileChanges>()
+  const [changes, setChanges] = createSignal<FileChanges>()
+  const [changesLoading, setChangesLoading] = createSignal(false)
+  const [changesError, setChangesError] = createSignal("")
+  let changesController: AbortController | undefined
+  const loadChanges = async (source: SourceDocument) => {
+    if (!changeProvider) return
+    const cached = changeCache.get(source)
+    if (cached) { setChanges(cached); return }
+    const controller = changesController = new AbortController()
+    setChangesLoading(true)
+    try {
+      const value = await changeProvider(source, controller.signal)
+      if (controller.signal.aborted) return
+      changeCache.set(source, value)
+      setChanges(value)
+    } catch (cause) {
+      if (!controller.signal.aborted) setChangesError(errorMessage(cause))
+    } finally { if (!controller.signal.aborted) setChangesLoading(false) }
+  }
+  const clearChanges = () => {
+    changesController?.abort()
+    batch(() => { setChanges(undefined); setChangesLoading(false); setChangesError("") })
+  }
   const [document, setDocument] = createSignal<SourceDocument>()
   const [location, setLocation] = createSignal<PeekLocation>()
   const [loading, setLoading] = createSignal(false)
@@ -39,6 +64,7 @@ export function createFileViewModel(client: LanguageClient) {
   const canQuery = () => !!document()?.queryable && !loading() && !error()
   const navigate = async (destination: PeekLocation, record = true, force = false) => {
     documentController?.abort()
+    clearChanges()
     clearSymbol()
     const controller = documentController = new AbortController()
     const snapshot = { ...destination }
@@ -64,6 +90,7 @@ export function createFileViewModel(client: LanguageClient) {
         setDocument(loaded)
         if (!force) setNavigation((value) => value + 1)
       })
+      void loadChanges(loaded)
     } catch (cause) {
       if (!controller.signal.aborted) setError(errorMessage(cause))
     } finally { if (!controller.signal.aborted) setLoading(false) }
@@ -123,12 +150,14 @@ export function createFileViewModel(client: LanguageClient) {
   }
   const reset = () => {
     documentController?.abort()
+    clearChanges()
     clearSymbol()
     cache.clear()
     batch(() => { setDocument(undefined); setLocation(undefined); setHistory([]); setCursor(-1); setResults(undefined); setLoading(false); setError("") })
   }
   onCleanup(reset)
   return {
+    changes, changesLoading, changesError, hasChanges: !!changeProvider,
     document, location, loading, error, target, occurrences, queryLoading, queryError, highlightLoading, highlightError, hover, results, navigation,
     canQuery, navigate, choose, query, selectResult, clearSymbol, reset, escape,
     canBack: () => cursor() > 0,

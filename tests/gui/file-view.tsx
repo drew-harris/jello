@@ -5,6 +5,7 @@ import { CodePeekPanel } from "../../src/features/intelligence/peek-panel"
 import { createFileViewModel } from "../../src/features/intelligence/file-model"
 import type { LanguageClient } from "../../src/features/intelligence/client"
 import type { PeekLocation } from "../../src/features/intelligence/rpc"
+import type { FileChangeProvider } from "../../src/features/intelligence/file-changes"
 import "../../src/features/intelligence/style.css"
 
 const at = (path: string, line = 0): PeekLocation => ({ path, line, character: line === 0 ? 13 : 12, endLine: line, endCharacter: line === 0 ? 18 : 17 })
@@ -13,6 +14,12 @@ const contents: Record<string, string> = {
   "/repo/definition.ts": "export const value = 42\nconsole.log(value)\n// end of complete file\n",
 }
 const calls: string[] = []
+const fileChanges: FileChangeProvider = async () => ({ markers: [
+  { line: 0, kind: "modified", layer: "current" },
+  { line: 1, kind: "added", layer: "branch" },
+  { line: 2, kind: "deleted", layer: "current" },
+  { line: 1000, kind: "modified", layer: "branch" },
+] })
 const client: LanguageClient = {
   async document(path) { calls.push(`document:${path}`); return { path, text: contents[path], queryable: true } },
   async lookup(position, kind) {
@@ -51,7 +58,7 @@ async function modalEscapeRegression() {
 }
 
 function Harness() {
-  const model = createFileViewModel(client)
+  const model = createFileViewModel(client, fileChanges)
   const [peekOpened, setPeekOpened] = createSignal(false)
   const initial = { locations: [at("/repo/main.ts"), at("/repo/main.ts", 1)], truncated: false }
   onMount(() => { void model.seed({ label: "References: value", locations: [at("/repo/main.ts"), at("/repo/main.ts", 1)], truncated: false }) })
@@ -61,7 +68,7 @@ function Harness() {
     <p>Mock LSP, real virtualized renderer. No repository changes or server queries.</p>
     <button type="button" data-testid="open-peek" onClick={() => setPeekOpened(true)}>Open peek modal</button>
     <CodePeekPanel directory="/repo" peek={{ opened: peekOpened, kind: () => "references", target: () => ({ text: "value" }),
-      result: () => initial, loading: () => false, error: () => "", client,
+      result: () => initial, loading: () => false, error: () => "", client, fileChanges,
       open: async () => {}, close: () => setPeekOpened(false), keydown: (event) => {
         if (event.key === "Escape") { event.preventDefault(); setPeekOpened(false) }
       },

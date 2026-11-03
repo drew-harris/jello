@@ -5,6 +5,7 @@ import { isServer } from "solid-js/web"
 import type { LanguageClient } from "./client"
 import { createFileViewModel } from "./file-model"
 import type { PeekLocation, SourceDocument, SymbolPosition } from "./rpc"
+import type { FileChangeProvider, FileChanges } from "./file-changes"
 
 const line = "const value = 1"
 const location = (path = "/repo/a.ts", row = 0): PeekLocation => ({ path, line: row, character: 6, endLine: row, endCharacter: 11 })
@@ -16,9 +17,9 @@ const client = (overrides: Partial<LanguageClient> = {}): LanguageClient => ({
   hover: async () => ({ text: "const value: 1" }),
   ...overrides,
 })
-const modelRoot = (transport: LanguageClient) => {
+const modelRoot = (transport: LanguageClient, provider?: FileChangeProvider) => {
   let dispose!: () => void
-  const model = createRoot((cleanup) => { dispose = cleanup; return createFileViewModel(transport) })
+  const model = createRoot((cleanup) => { dispose = cleanup; return createFileViewModel(transport, provider) })
   return { model, dispose }
 }
 
@@ -183,6 +184,52 @@ test("refresh retains displayed text, reports failures inline and permits retry"
     assert.equal(model.error(), "")
     assert.equal(reads, 3)
     assert.equal(model.navigation(), navigation, "refresh must not request a jump away from the user's scroll position")
+  } finally { dispose() }
+})
+
+test("gutter loads do not block source and stale responses cannot decorate a different file", { skip: isServer }, async () => {
+  const requests: Array<{ signal: AbortSignal; resolve(value: FileChanges): void }> = []
+  const { model, dispose } = modelRoot(client(), (_source, signal) => new Promise((resolve) => requests.push({ signal, resolve })))
+  try {
+    await model.navigate(location())
+    assert.ok(model.document())
+    assert.equal(model.loading(), false)
+    assert.equal(model.changesLoading(), true)
+    await model.navigate(location("/repo/b.ts"))
+    assert.equal(requests[0]!.signal.aborted, true)
+    const markers: FileChanges = { markers: [{ line: 0, kind: "added", layer: "current" }] }
+    requests[1]!.resolve(markers)
+    await Promise.resolve()
+    assert.deepEqual(model.changes(), markers)
+    requests[0]!.resolve({ markers: [], note: "stale" })
+    await Promise.resolve()
+    assert.deepEqual(model.changes(), markers)
+    await model.navigate(location("/repo/b.ts", 1))
+    assert.equal(requests.length, 2, "navigation within cached text reuses markers")
+    await model.refresh()
+    assert.equal(requests.length, 3, "refresh reloads signs for new content")
+    dispose()
+    assert.equal(requests[2]!.signal.aborted, true)
+    requests[2]!.resolve(markers)
+    await Promise.resolve()
+    assert.equal(model.changes(), undefined)
+  } finally { dispose() }
+})
+
+test("gutter failures stay separate from source errors and refresh retries them", { skip: isServer }, async () => {
+  let calls = 0
+  const { model, dispose } = modelRoot(client(), async () => {
+    if (++calls === 1) throw new Error("JJ offline")
+    return { markers: [] }
+  })
+  try {
+    await model.navigate(location())
+    assert.equal(model.changesError(), "JJ offline")
+    assert.equal(model.error(), "")
+    assert.equal(model.canQuery(), true)
+    await model.refresh()
+    assert.equal(model.changesError(), "")
+    assert.deepEqual(model.changes(), { markers: [] })
   } finally { dispose() }
 })
 

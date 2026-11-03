@@ -72,3 +72,9 @@
 .jello-file-hover { position: relative; flex-shrink: 0; max-height: 150px; overflow: auto; padding: 8px 12px; background: var(--file-hover); border-bottom: 1px solid var(--file-border); }
 .jello-file-hover > button { float: right; }
 .jello-file-hover pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-family: var(--jello-file-font, monospace); font-size: 12px; }
+.jello-file-change-legend {
+  padding: 4px 12px;
+  font-size: 11px;
+  color: var(--text-weak);
+  flex: none;
+}

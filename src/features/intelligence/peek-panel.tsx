@@ -6,6 +6,7 @@ import type { LanguageClient } from "./client"
 import { createFileViewModel } from "./file-model"
 import { FileView } from "./file-view"
 import { createPeekEscape } from "./peek-escape"
+import type { FileChangeProvider } from "./file-changes"
 
 export interface PeekPanelModel {
   opened: Accessor<boolean>
@@ -15,6 +16,7 @@ export interface PeekPanelModel {
   loading: Accessor<boolean>
   error: Accessor<string>
   client: LanguageClient
+  fileChanges?: FileChangeProvider
   open(kind: PeekKind): void | Promise<void>
   close(): void
   keydown(event: KeyboardEvent): void
@@ -28,7 +30,7 @@ export function CodePeekPanel(props: { peek: PeekPanelModel; directory: string; 
 function PeekModal(props: { peek: PeekPanelModel; directory: string; theme?: string }) {
   const ctx = usePlugin()
   const ui = ctx.ui
-  const file = createFileViewModel(props.peek.client)
+  const file = createFileViewModel(props.peek.client, props.peek.fileChanges)
   const title = () => `${props.peek.kind() === "definition" ? "Definition" : "References"}: ${props.peek.target()?.text ?? "Symbol"}`
   createEffect(on(() => props.peek.result(), (result) => {
     if (result) void file.seed({ ...result, label: title() })

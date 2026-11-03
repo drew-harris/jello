@@ -163,7 +163,13 @@ Queries target the file being viewed, so navigation can continue through
 definitions and authorized dependencies. **Back/Forward** (**Alt+Left/Right**)
 restore visited locations and their result lists, using a bounded document cache.
 Wrap and Refresh source actions are local to this view. **j/k** and **Ctrl+D/U**
-scroll the source viewport, not the enclosing diff. **Escape** goes back one file
+scroll the source viewport, not the enclosing diff. File gutters use solid signs
+for the current JJ change and dim outlines for changes since the main/master
+fork (green added, blue modified, red deleted). Solid signs win overlaps.
+Signs load separately without blocking source navigation; refresh source to
+reload them. Missing or ambiguous main/master baselines show current signs only.
+Content checks suppress signs if the source differs from the pinned JJ snapshot.
+**Escape** goes back one file
 navigation step when history is available. At the initial location it dismisses
 hover or symbol selection, then closes the modal. Clicking the backdrop or the close
 button also dismisses it; focus returns to the diff. Source context menus stay

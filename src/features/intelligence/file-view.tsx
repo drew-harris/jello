@@ -57,6 +57,12 @@ export function FileView(props: { model: FileViewModel; directory: string; theme
       <button type="button" aria-pressed={wrap()} onClick={() => setWrap(!wrap())}>Wrap</button>
       <ui.IconButton icon="refresh" label="Refresh source file" disabled={model.loading()} onClick={() => void model.refresh()} />
     </div>
+    <Show when={model.hasChanges}><div class="jello-file-change-legend" role="status">
+      <span title="Green: added · blue: modified · red: deleted">▰ Current JJ change · ▱ Since main/master fork</span>
+      <Show when={model.changesLoading()}> · Loading gutter signs…</Show>
+      <Show when={model.changes()?.note}>{(note) => <span> · {note()}</span>}</Show>
+      <Show when={model.changesError()}>{(error) => <span> · Gutter signs unavailable: {error()}</span>}</Show>
+    </div></Show>
     <div class="jello-file-queries" role="toolbar" aria-label="Language queries">
       <For each={navigationQueries}>{(query) => <button type="button" disabled={queryDisabled()} title={query.shortcut} onClick={() => run(query.kind)}>{query.label}</button>}</For>
       <button type="button" disabled={queryDisabled()} title="Shift+K" onClick={() => run("hover")}>Hover</button>

@@ -5,11 +5,18 @@ import { createOccurrenceHighlights } from "./highlights"
 import { isSelectedOccurrence, sourceToken, tokenPosition } from "./position"
 import type { FileViewModel } from "./file-model"
 import { sourceItem, sourceScrollTarget } from "./file-rendering"
+import { gutterCSS, paintGutter } from "./file-changes"
 
 export function FileCode(props: { model: FileViewModel; theme?: string; wrap: boolean; menu(x: number, y: number): void }) {
   const ctx = usePlugin()
   let container!: HTMLDivElement
   const viewer = new CodeView()
+  const gutterRoots = new Set<HTMLElement>()
+  const paint = (node: HTMLElement) => paintGutter(node.shadowRoot ?? node, props.model.changes()?.markers ?? [])
+  createEffect(() => {
+    props.model.changes()
+    for (const node of gutterRoots) paint(node)
+  })
   const highlights = createOccurrenceHighlights({
     target: () => props.model.target() ?? props.model.location(),
     occurrences: props.model.occurrences,
@@ -50,9 +57,11 @@ export function FileCode(props: { model: FileViewModel; theme?: string; wrap: bo
           void props.model.query(event.shiftKey ? "references" : "definition")
         }
       },
-      unsafeCSS: `${highlights.css}\n:host { --diffs-font-family: var(--jello-file-font, monospace); --diffs-font-size: 12px; --diffs-line-height: 22px; }
+      unsafeCSS: `${highlights.css}\n${gutterCSS}\n:host { --diffs-font-family: var(--jello-file-font, monospace); --diffs-font-size: 12px; --diffs-line-height: 22px; }
         :host(:focus-visible), [data-code]:focus-visible, pre:focus-visible { outline: none; box-shadow: none; }`,
       onPostRender(node, _instance, phase) {
+        if (phase === "unmount") gutterRoots.delete(node)
+        else { gutterRoots.add(node); paint(node) }
         const path = props.model.document()?.path
         if (path) highlights.rendered(node, path, phase)
         node.oncontextmenu = phase === "unmount" ? null : (event) => {
@@ -75,7 +84,7 @@ export function FileCode(props: { model: FileViewModel; theme?: string; wrap: bo
     if (!document || !location) return
     viewer.scrollTo(sourceScrollTarget(document, location))
   }))
-  onCleanup(() => viewer.cleanUp())
+  onCleanup(() => { viewer.cleanUp(); gutterRoots.clear() })
   return <div ref={container} class="jello-file-code" role="region" tabindex={0} aria-label="Entire source file"
     style={{ "--jello-file-font": ctx.appearance.font("mono") }} />
 }

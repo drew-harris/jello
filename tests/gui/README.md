@@ -40,3 +40,7 @@ Run `await window.fileViewTest.modalEscapeRegression()` in the browser console t
 check the complete modal path: navigation with header or source focus, followed by
 both Escape keydown and native dialog `cancel`. Each must go back exactly once
 without closing the modal. This catches behavior that model-only tests cannot.
+
+The mock gutter provider supplies solid blue on line 1, outlined green on line 2,
+a solid red deletion anchor on line 3, and outlined blue on line 1001. Scroll to
+line 1001 and back to check that virtualized gutter signs survive recycling.
