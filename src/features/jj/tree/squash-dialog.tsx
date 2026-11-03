@@ -1,7 +1,8 @@
 import { createEffect, createMemo, createSignal, For, on, onCleanup, onMount, Show } from "solid-js"
 import { usePlugin } from "@opencode/plugin/gui"
-import { errorMessage } from "../errors"
+import { errorMessage } from "../../../shared/errors"
 import { squashDescription, type SquashDetails } from "./squash-model"
+import { createAsyncAction } from "../../../shared/gui/async-action"
 
 export function SquashDialog(props: {
   changeID: string
@@ -26,8 +27,9 @@ export function SquashDialog(props: {
   onMount(() => void load())
   const [parentID, setParentID] = createSignal("")
   const [message, setMessage] = createSignal<string>()
-  const [busy, setBusy] = createSignal(false)
-  const [error, setError] = createSignal("")
+  const action = createAsyncAction({ toast: ctx.toast })
+  const busy = action.pending
+  const error = action.error
   const parent = createMemo(() => {
     const parents = details()?.data?.parents ?? []
     return parents.find((parent) => parent.commitID === parentID()) ?? (parents.length === 1 ? parents[0] : undefined)
@@ -47,14 +49,10 @@ export function SquashDialog(props: {
   const submit = async () => {
     const target = parent()
     if (!target || target.immutable || busy() || loading()) return
-    setBusy(true)
-    setError("")
-    try {
+    await action.run(async () => {
       await props.save(target.commitID, combined() ? message() ?? description() : undefined)
       props.close()
-      ctx.toast.show({ variant: "success", title: "Change squashed into parent" })
-    } catch (error) { setError(errorMessage(error)) }
-    finally { setBusy(false) }
+    }, { success: "Change squashed into parent" })
   }
   return <ui.Dialog title="Squash below" description={`Squash ${props.changeID.slice(0, 8)} into its parent, removing the source change.`}
     footer={<div ref={actions} class="jello-jj-actions">
@@ -67,7 +65,7 @@ export function SquashDialog(props: {
         <Show when={(details()?.data?.parents.length ?? 0) > 1}>
           <label class="jello-jj-message-label">Parent change
             <select ref={parentPicker} class="jello-jj-tree-description-input" disabled={busy()} value={parentID()}
-              onChange={(event) => { setParentID(event.currentTarget.value); setMessage(undefined); setError("") }}>
+              onChange={(event) => { setParentID(event.currentTarget.value); setMessage(undefined); action.clearError() }}>
               <option value="">Choose a parent…</option>
               <For each={details()?.data?.parents}>{(parent) => <option value={parent.commitID} disabled={parent.immutable}>
                 {parent.changeID.slice(0, 8)} — {parent.description.split("\n")[0] || "No description"}{parent.immutable ? " (immutable)" : ""}

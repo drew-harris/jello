@@ -1,12 +1,14 @@
-import { createEffect, createMemo, createSignal, For, onCleanup, Show, type Accessor } from "solid-js"
+import { createEffect, createMemo, createSignal, onCleanup, Show, type Accessor } from "solid-js"
 import { usePlugin, type MountedSession } from "@opencode/plugin/gui"
 import type { DiffTokenEventBaseProps } from "@pierre/diffs"
-import { Intelligence, type PeekKind, type PeekLocation, type PeekResult, type PeekSource, type SymbolPosition } from "./rpc"
+import { Intelligence, type PeekKind, type PeekLocation, type PeekResult, type SymbolPosition } from "../../../intelligence/rpc"
 import { contextToken, isSelectedOccurrence, tokenPosition } from "./position"
-import { errorMessage } from "../../errors"
-import { SymbolContextMenu } from "./context-menu"
-import { PeekCode } from "./preview-code"
+import { errorMessage } from "../../../../shared/errors"
+import { SymbolContextMenu } from "../../../intelligence/context-menu"
+import { CodePeekPanel as PeekPanel } from "../../../intelligence/peek-panel"
 import { localDefinition } from "./jump"
+import { createLanguageRestart } from "../../../intelligence/restart"
+import { createLanguageClient } from "../../../intelligence/client"
 
 function restoreDiffFocus(element: HTMLElement | undefined) {
   // CodeView makes its scroll canvas focusable. Returning keyboard focus to
@@ -20,7 +22,9 @@ function restoreDiffFocus(element: HTMLElement | undefined) {
 
 export function createCodePeek(session: Accessor<MountedSession>, revision: Accessor<string>, current: Accessor<boolean>) {
   const ctx = usePlugin()
-  const [restarting, setRestarting] = createSignal(false)
+  const client = createLanguageClient(session)
+  const languageRestart = createLanguageRestart(ctx)
+  const restarting = languageRestart.pending
   const [target, setTarget] = createSignal<SymbolPosition>()
   const [definition, setDefinition] = createSignal<PeekLocation>()
   const jumps = new Set<(location: PeekLocation, signal: AbortSignal) => boolean | Promise<boolean>>()
@@ -42,10 +46,6 @@ export function createCodePeek(session: Accessor<MountedSession>, revision: Acce
   const [loading, setLoading] = createSignal(false)
   const [error, setError] = createSignal("")
   const [result, setResult] = createSignal<PeekResult>()
-  const [selected, setSelected] = createSignal(0)
-  const [source, setSource] = createSignal<PeekSource>()
-  const [sourceLoading, setSourceLoading] = createSignal(false)
-  const [sourceError, setSourceError] = createSignal("")
   const [occurrences, setOccurrences] = createSignal<PeekLocation[]>([])
   const [highlightLoading, setHighlightLoading] = createSignal(false)
   const [highlightError, setHighlightError] = createSignal("")
@@ -59,17 +59,12 @@ export function createCodePeek(session: Accessor<MountedSession>, revision: Acce
     setHighlightError("")
   }
   let lookupController: AbortController | undefined
-  let sourceController: AbortController | undefined
   let returnFocus: HTMLElement | undefined
   let generation = 0
-  let sourceGeneration = 0
   const cancel = () => {
     generation++
-    sourceGeneration++
     lookupController?.abort()
-    sourceController?.abort()
     setLoading(false)
-    setSourceLoading(false)
   }
   const close = () => {
     cancel()
@@ -100,31 +95,11 @@ export function createCodePeek(session: Accessor<MountedSession>, revision: Acce
       endLine: position.line, endCharacter: position.character + position.text.length }])
     setHighlightLoading(true)
     try {
-      const data = await session().server.client.rpc(Intelligence).lookup({ directory: session().directory,
-        path: position.path, line: position.line, character: position.character, expectedLine: position.expectedLine,
-        kind: "documentHighlight" }, { signal: controller.signal }) as PeekResult
+      const data = await client.lookup(position, "documentHighlight", controller.signal)
       if (request === highlightGeneration) setOccurrences(data.locations)
     } catch (error) {
       if (request === highlightGeneration && !controller.signal.aborted) setHighlightError(errorMessage(error))
     } finally { if (request === highlightGeneration) setHighlightLoading(false) }
-  }
-  const location = () => result()?.locations[selected()]
-  const select = async (index: number) => {
-    sourceController?.abort()
-    const request = ++sourceGeneration
-    const controller = sourceController = new AbortController()
-    setSelected(index)
-    setSource(undefined)
-    setSourceError("")
-    const item = location()
-    if (!item) return
-    setSourceLoading(true)
-    try {
-      const value = await session().server.client.rpc(Intelligence).source({ directory: session().directory, path: item.path, line: item.line }, { signal: controller.signal }) as PeekSource
-      if (request === sourceGeneration) setSource(value)
-    } catch (error) {
-      if (request === sourceGeneration && !controller.signal.aborted) setSourceError(errorMessage(error))
-    } finally { if (request === sourceGeneration) setSourceLoading(false) }
   }
   const open = async (value: PeekKind) => {
     if (menu()) closeMenu(true)
@@ -139,11 +114,8 @@ export function createCodePeek(session: Accessor<MountedSession>, revision: Acce
     setLoading(true)
     setError("")
     setResult(undefined)
-    setSource(undefined)
-    setSourceError("")
     try {
-      const data = await session().server.client.rpc(Intelligence).lookup({ directory: session().directory,
-        path: position.path, line: position.line, character: position.character, expectedLine: position.expectedLine, kind: value }, { signal: controller.signal }) as PeekResult
+      const data = await client.lookup(position, value, controller.signal)
       if (request !== generation) return
       setResult(data)
       const destination = localDefinition(value, data)
@@ -156,7 +128,6 @@ export function createCodePeek(session: Accessor<MountedSession>, revision: Acce
         }
       }
       setOpened(true)
-      if (data.locations.length) void select(0)
     } catch (error) {
       if (request === generation && !controller.signal.aborted) { setError(errorMessage(error)); setOpened(true) }
     } finally { if (request === generation) setLoading(false) }
@@ -171,10 +142,7 @@ export function createCodePeek(session: Accessor<MountedSession>, revision: Acce
     setUnavailable("")
     targetSide = undefined
     setResult(undefined)
-    setSource(undefined)
     setError("")
-    setSourceError("")
-    setSelected(0)
   }
   // A palette action or another panel/window may restart this workspace's LSP.
   // Invalidate generations as well as visuals so old responses cannot reappear.
@@ -189,18 +157,9 @@ export function createCodePeek(session: Accessor<MountedSession>, revision: Acce
   })
   const restart = async () => {
     if (restarting()) return
-    const client = session().server.client
-    const directory = session().directory
     closeMenu(true)
     deselect()
-    setRestarting(true)
-    const progress = ctx.toast.show({ variant: "loading", title: "Restarting TypeScript language server…", persistent: true })
-    try {
-      await client.rpc(Intelligence).restart({ directory })
-      ctx.toast.show({ variant: "success", title: "TypeScript language server restarted", description: "LSP state cleared. The next lookup will reload the project." })
-    } catch (error) {
-      ctx.toast.show({ variant: "error", title: "Could not restart TypeScript language server", description: errorMessage(error) })
-    } finally { progress.dismiss(); setRestarting(false) }
+    await languageRestart.run(session())
   }
   const choose = (position: SymbolPosition, token: DiffTokenEventBaseProps) => {
     cancel()
@@ -261,7 +220,7 @@ export function createCodePeek(session: Accessor<MountedSession>, revision: Acce
     event.stopPropagation()
     void open(event.shiftKey ? "references" : "definition")
   }
-  return { target, unavailable, kind, opened, loading, error, result, selected, source, sourceLoading, sourceError, location, select, open, close, click, keydown,
+  return { client, target, unavailable, kind, opened, loading, error, result, open, close, click, keydown,
     menu, closeMenu, contextmenu, definition, registerDefinitionJump, restart, restarting,
     occurrences, highlightLoading, highlightError }
 }
@@ -300,50 +259,5 @@ export function PeekContextMenu(props: { peek: CodePeek }) {
 
 export function CodePeekPanel(props: { peek: CodePeek; directory: string }) {
   const ctx = usePlugin()
-  const ui = ctx.ui
-  const displayPath = (path: string) => path.startsWith(`${props.directory}/`) ? path.slice(props.directory.length + 1) : path
-  let body!: HTMLDivElement
-  createEffect(() => {
-    props.peek.source()
-    props.peek.location()
-    const frame = requestAnimationFrame(() => {
-      const line = body?.querySelector<HTMLElement>(".is-target")
-      if (line) body.scrollTop = Math.max(0, line.offsetTop - body.offsetTop - 40)
-    })
-    onCleanup(() => cancelAnimationFrame(frame))
-  })
-  return <Show when={props.peek.opened()}>
-    <section class="jello-jj-peek" aria-label={`Peek ${props.peek.kind()}`} onKeyDown={props.peek.keydown}>
-      <header>
-        <strong>{props.peek.kind() === "definition" ? "Definition" : "References"}: {props.peek.target()?.text}</strong>
-        <span>{props.peek.result()?.locations.length}{props.peek.result()?.truncated ? "+ (limited to 500)" : ""}</span>
-        <Show when={props.peek.result()?.locations.length === 1 && props.peek.location()}>{(location) =>
-          <span class="jello-jj-peek-path" title={location().path}>{displayPath(location().path)}:{location().line + 1}</span>
-        }</Show>
-        <span class="jello-jj-peek-spacer" />
-        <button type="button" onClick={() => void props.peek.open(props.peek.kind())} disabled={props.peek.loading()}>{props.peek.error() ? "Retry" : "Refresh"}</button>
-        <ui.IconButton icon="close" label="Close peek (Escape)" onClick={props.peek.close} />
-      </header>
-      <Show when={props.peek.loading()}><p role="status">Looking up {props.peek.kind()}… First lookup may take a moment while TypeScript loads the project.</p></Show>
-      <Show when={props.peek.error()}><p role="alert">{props.peek.error()}</p></Show>
-      <Show when={props.peek.result()}>{(result) => <Show when={result().locations.length} fallback={<p role="status">No {props.peek.kind() === "definition" ? "definition" : "references"} found.</p>}>
-        <div class="jello-jj-peek-body">
-          <Show when={result().locations.length > 1}><nav aria-label="Peek results"><For each={result().locations}>{(location, index) =>
-            <button type="button" classList={{ "is-selected": index() === props.peek.selected() }}
-              aria-current={index() === props.peek.selected() ? "true" : undefined} title={location.path}
-              onClick={() => void props.peek.select(index())}>
-              {displayPath(location.path)}<span>:{location.line + 1}:{location.character + 1}</span>
-            </button>
-          }</For></nav></Show>
-          <div class="jello-jj-peek-code" ref={body} tabindex={0} aria-label="Source preview" style={{ "font-family": ctx.appearance.font("mono") }}>
-            <Show when={props.peek.sourceLoading()}><p role="status">Loading source…</p></Show>
-            <Show when={props.peek.sourceError()}><p role="alert">{props.peek.sourceError()} <button type="button" onClick={() => void props.peek.select(props.peek.selected())}>Retry</button></p></Show>
-            <Show when={props.peek.source()}>{(source) => <Show when={props.peek.location()}>{(location) =>
-              <PeekCode source={source()} location={location()} />
-            }</Show>}</Show>
-          </div>
-        </div>
-      </Show>}</Show>
-    </section>
-  </Show>
+  return <PeekPanel peek={props.peek} directory={props.directory} theme={`jello-jj-${ctx.appearance.mode()}`} />
 }

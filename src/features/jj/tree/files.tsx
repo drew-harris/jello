@@ -1,9 +1,9 @@
 import { createEffect, createMemo, For, Show } from "solid-js"
 import { usePlugin, type MountedSession } from "@opencode/plugin/gui"
-import { errorMessage } from "../errors"
+import { errorMessage } from "../../../shared/errors"
 import type { ChangedFile } from "../changed-files"
 import { openRevisionDiff } from "../diff/navigation"
-import { repositoryViewKey, type ViewModels } from "../view-models"
+import { repositoryViewKey, type ViewModels } from "../../../shared/gui/view-models"
 import { createRevisionFilesModel, type RevisionFilesModel } from "./state"
 
 interface RevisionFilesProps {

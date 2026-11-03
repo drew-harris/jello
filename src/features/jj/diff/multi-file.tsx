@@ -3,11 +3,11 @@ import { createEffect, createSignal, on, onCleanup, onMount } from "solid-js"
 import { usePlugin, type SessionScreen } from "@opencode/plugin/gui"
 import { diffThemeCSS } from "./theme"
 import { createDiffStack, stackFileIndex } from "./stack"
-import { errorMessage } from "../errors"
+import { errorMessage } from "../../../shared/errors"
 import { normalizeDiffFontSize, type definition } from "../../../gui/definition"
 import { createDiffComments, type DiffAnnotation } from "./comments"
 import type { CodePeek } from "./intelligence/peek"
-import { createOccurrenceHighlights } from "./intelligence/highlights"
+import { createOccurrenceHighlights } from "../../intelligence/highlights"
 import { hasDefinitionLine, nextDefinitionFrame } from "./intelligence/jump"
 
 export function MultiFileDiff(props: {

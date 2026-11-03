@@ -146,11 +146,29 @@ selected, **F12** peeks its definition and **Shift+F12** peeks references;
 **Shift+F10** or the context-menu key opens its menu.
 **Cmd/Ctrl-click** opens a definition peek directly; add **Shift** for references.
 **Cmd/Ctrl-right-click** opens references directly, skipping the context menu.
-Both actions open a read-only pane below the diff, without navigating away or
-resetting its scroll position. Select a result to preview syntax-highlighted source
-using the diff's light/dark palette, with the target symbol emphasized. When there
-is only one result, the sidebar is hidden and its file path appears in the peek
-header instead. **Escape** closes the pane. Works in single-file and multi-file modes.
+Both actions open a read-only modal above the diff, with 32px margins around the
+window (16px on small screens), without navigating away or resetting the diff's
+scroll position. Select a result to preview syntax-highlighted source
+using the diff's light/dark palette, with the target symbol emphasized. The pane
+contains a reusable, read-only **full-file view**, not a cropped source snippet.
+The entire file is scrollable using the native virtualized renderer; only visible
+rows mount. When there is only one result, the result sidebar is hidden.
+Works in single-file and multi-file modes.
+
+Within the file view, select a symbol to highlight its occurrences, then use the
+toolbar or right-click menu for **Definition**, **References**, **Type definition**,
+**Implementations**, or **Hover**. **F12 / Shift+F12** and **Cmd/Ctrl-click** (add
+Shift for references) work inside source files too; **Shift+K** shows hover information.
+Queries target the file being viewed, so navigation can continue through
+definitions and authorized dependencies. **Back/Forward** (**Alt+Left/Right**)
+restore visited locations and their result lists, using a bounded document cache.
+Wrap and Refresh source actions are local to this view. **j/k** and **Ctrl+D/U**
+scroll the source viewport, not the enclosing diff. **Escape** goes back one file
+navigation step when history is available. At the initial location it dismisses
+hover or symbol selection, then closes the modal. Clicking the backdrop or the close
+button also dismisses it; focus returns to the diff. Source context menus stay
+interactive inside the modal's focus boundary.
+
 An unambiguous definition in the same file scrolls directly to its line in the
 diff and emphasizes the definition's symbol instead of opening a peek. Definitions
 outside the loaded diff hunks still use the source preview, as do other-file and
@@ -161,8 +179,8 @@ beside the checkout; no global language-server installation or Electron IPC is
 needed. **Node.js 22.22.2+ must be on that server's PATH.** It starts on the first
 lookup, is reused for subsequent requests, and
 stops after ten idle minutes or plugin unload. Initial project loading may take
-a moment on large repositories. Results are capped at 500 and source previews
-load on demand. References exclude the declaration itself.
+a moment on large repositories. Results are capped at 500 and full source files
+load on demand (text files up to 4 MiB). References exclude the declaration itself.
 
 Historical revisions and the deleted/left side are intentionally unsupported;
 they never silently query the current checkout. If a displayed source line has
@@ -188,6 +206,7 @@ src/
 ├── rpc.ts              Shared/demo RPC contract
 ├── gui.tsx             ./gui-experimental entry: Plugin.define({ ...definition, setup })
 ├── features/
+│   ├── intelligence/   Workspace language service, RPC, restart and shared peek UI
 │   └── jj/             Self-contained JJ feature
 │       ├── server.ts   Server registration
 │       ├── rpc.ts      JJ RPC contract
@@ -201,6 +220,7 @@ src/
 │       ├── status-summary.ts
 │       ├── status-summary.test.ts
 │       └── style.css
+├── shared/             Async resources, caching, invalidation, actions, menus, command execution
 └── gui/
     ├── definition.ts   Stored state declarations
     ├── window.tsx      Shared setup and feature composition
@@ -212,6 +232,13 @@ New features belong in their own `src/features/<name>/` directory. Register thei
 server and GUI setup functions from `src/index.ts` and `src/gui/window.tsx`.
 Feature IDs and CSS are namespaced so they do not collide with other Jello
 features. UI text is plain English inline; there is no internationalization layer.
+
+Reusable async resources, model caching/preloading, repository invalidation,
+mutation actions, menu behavior, and command execution live in `src/shared/`.
+Workspace language intelligence and reusable peek UI live in
+`src/features/intelligence/`; JJ's token/side adapters stay inside JJ Diff.
+See [Shared feature primitives](docs/architecture.md) for boundaries, lifetimes,
+usage, and verification.
 
 ## Develop
 
@@ -237,6 +264,8 @@ panel from the side panel's **+** menu.
 
 | Script              | What it does                            |
 | ------------------- | --------------------------------------- |
+| `bun run test`      | Runs all tests, including Solid's browser-condition model/lifecycle tests |
+| `bun run test:gui`  | Opens a local file-view smoke-test server with mock LSP and the real renderer |
 | `bun run build`     | Builds `dist/gui-experimental.cjs` once |
 | `bun run dev`       | Rebuilds on every change                |
 | `bun run typecheck` | Type-checks the project with `tsc`      |

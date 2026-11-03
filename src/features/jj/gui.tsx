@@ -9,21 +9,30 @@ import { setupDiff } from "./diff/gui"
 import css from "./style.css?inline"
 import treeCSS from "./tree/style.css?inline"
 import type { ChangedFile } from "./changed-files"
-import { ViewModels } from "./view-models"
-import type { HistoryModel, RevisionFilesModel } from "./tree/state"
+import { repositoryViewKey, ViewModels } from "../../shared/gui/view-models"
+import { createHistoryModel, type HistoryModel, type RevisionFilesModel } from "./tree/state"
+import { repositoryServices, sessionRepository } from "../../shared/gui/repository"
+import { JJ_CHANGED } from "./invalidation"
+import type { StatusModel } from "./status-model"
 
 // All JJ window contributions live here; the Jello shell only composes features.
 export const setupJJ: Plugin.Setup<typeof definition> = (ctx) => {
   setupDiff(ctx)
   const historyModels = new ViewModels<HistoryModel>()
   const filesModels = new ViewModels<RevisionFilesModel>(100)
+  const statusModels = new ViewModels<StatusModel>()
+  const repositories = repositoryServices(ctx)
   const key = `${ctx.id}:jj`
-  const [revision, setRevision] = createSignal(0)
   const [focusRequest, setFocusRequest] = createSignal(0)
   const open = () => {
     const session = ctx.sessions.current()
     if (!session) return
-    setRevision((value) => value + 1)
+    const saved = ctx.stores.jjTree(session).value
+    const limit = saved?.directory === session.directory ? saved.limit : 100
+    historyModels.preload(repositoryViewKey(session.server.id, session.directory), () => createHistoryModel(session.directory), (model) => {
+      model.configure(session.server.client, limit, 0)
+      if (model.history.latest || model.history.error) model.refresh()
+    })
     ctx.layout.open(key, session)
     setFocusRequest((value) => value + 1)
   }
@@ -40,11 +49,15 @@ export const setupJJ: Plugin.Setup<typeof definition> = (ctx) => {
       if (!session) return
       const directory = session.directory
       const client = session.server.client
+      const repository = sessionRepository(session)
       ctx.dialogs.open((dialog) => <CommitDialog
         directory={directory}
         close={dialog.close}
-        onCommitted={() => setRevision((value) => value + 1)}
-        commit={async (message) => { await client.rpc(Status).commit({ directory, message }) }}
+        onCommitted={() => repositories.events.invalidate(repository, JJ_CHANGED)}
+        commit={async (message) => {
+          const release = repositories.gate(repository).acquire()
+          try { await client.rpc(Status).commit({ directory, message }) } finally { release() }
+        }}
         loadFiles={async () => await client.rpc(Status).changedFiles({ directory }) as ChangedFile[]}
       />)
     },
@@ -54,7 +67,7 @@ export const setupJJ: Plugin.Setup<typeof definition> = (ctx) => {
   ctx.add(Style, treeCSS)
   ctx.add(Slot, {
     at: "window.bottom",
-    render: () => <Show when={ctx.stores.prefs.value.showStatusBar}><StatusBar revision={revision()} /></Show>,
+    render: () => <Show when={ctx.stores.prefs.value.showStatusBar}><StatusBar models={statusModels} /></Show>,
   })
   ctx.add(Command, {
     id: "jj.status.toggle",
@@ -84,7 +97,7 @@ export const setupJJ: Plugin.Setup<typeof definition> = (ctx) => {
       icon: "extensions",
     },
     list: (input) => input.open.includes("jj") ? [tab] : [],
-    render: (props) => <PanelView session={props.session} models={historyModels} filesModels={filesModels} revision={revision()} focusRequest={focusRequest()} onChanged={() => setRevision((value) => value + 1)} />,
+    render: (props) => <PanelView session={props.session} models={historyModels} filesModels={filesModels} focusRequest={focusRequest()} />,
     enter: () => setFocusRequest((value) => value + 1),
   })
   ctx.add(Command, (): Command => ({

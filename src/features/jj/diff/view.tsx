@@ -3,7 +3,7 @@ import { batch, createEffect, createMemo, createSignal, ErrorBoundary, For, on, 
 import { usePlugin, type MountedSession, type SessionScreen } from "@opencode/plugin/gui"
 import type { RevisionDiff } from "./server"
 import { parseDiffTabID, type DiffTabRevision } from "./tab"
-import { errorMessage } from "../errors"
+import { errorMessage } from "../../../shared/errors"
 import { buildFileTree, type FileTreeNode } from "./tree"
 import { DiffIcon, FileIcon } from "./icons"
 import { diffThemeCSS } from "./theme"
@@ -12,16 +12,18 @@ import { diffScrollAmount } from "./shortcuts"
 import { MultiFileDiff } from "./multi-file"
 import { createDiffScroller } from "./scroll"
 import { normalizeDiffFontSize, type definition } from "../../../gui/definition"
-import type { ViewModels } from "../view-models"
+import type { ViewModels } from "../../../shared/gui/view-models"
 import { diffSessionKey } from "./navigation"
 import { createDiffModel, type DiffModel } from "./state"
 import { createDiffComments, type DiffAnnotation } from "./comments"
 import { CodePeekPanel, createCodePeek, PeekContextMenu, type CodePeek } from "./intelligence/peek"
-import { createOccurrenceHighlights } from "./intelligence/highlights"
+import { createOccurrenceHighlights } from "../../intelligence/highlights"
 import { definitionRow, hasDefinitionLine, nextDefinitionFrame } from "./intelligence/jump"
 import { createDiffContextLoader } from "./context"
 import { Status } from "../rpc"
 import { rendererDiffFiles } from "./files"
+import { createPolling } from "../../../shared/gui/poll"
+import { observeRepository, repositoryServices } from "../../../shared/gui/repository"
 
 const fileKind = (file: FileDiffMetadata) => ({ new: "A", deleted: "D", "rename-pure": "R", "rename-changed": "R", change: "M" })[file.type]
 const count = (file: FileDiffMetadata, kind: "additionLines" | "deletionLines") => file.hunks.reduce((total, hunk) => total + hunk[kind], 0)
@@ -174,7 +176,7 @@ export function DiffView(props: DiffViewProps) {
     // Pierre's renderer uses shadow DOM. Check the composed path as well as
     // the retargeted element so editing/copying inside it retains native keys.
     if (event.composedPath().some((node) => node instanceof HTMLElement
-      && (node.isContentEditable || node.matches("input, textarea, select, [role=textbox]")))) return
+      && (node.isContentEditable || node.matches("input, textarea, select, [role=textbox], .jello-file-view")))) return
     const content = panel.querySelector<HTMLElement>(".jello-jj-diff-content")
     if (!content) return
     const amount = diffScrollAmount(event, content.clientHeight)
@@ -248,19 +250,12 @@ function DiffContents(props: DiffViewProps & { modelKey: string }) {
       error: latest ? undefined : error, refreshError: latest ? error : "" }
   })
   const [slowRefresh, setSlowRefresh] = createSignal(false)
-  let disposed = false
-  let poll: ReturnType<typeof setTimeout> | undefined
-  const schedule = () => {
-    clearTimeout(poll)
-    if (!disposed && result()?.data?.revision.current) poll = setTimeout(() => refresh(), model.nextDelay())
-  }
   createEffect(on(loading, (pending) => {
     setSlowRefresh(false)
     if (pending) {
-      clearTimeout(poll)
       const timer = setTimeout(() => setSlowRefresh(true), 3_000)
       onCleanup(() => clearTimeout(timer))
-    } else schedule()
+    }
   }))
   const refetch = model.refresh
   createEffect(() => model.configure(props.session.server.client))
@@ -278,22 +273,12 @@ function DiffContents(props: DiffViewProps & { modelKey: string }) {
   }))
   const active = () => result()?.id === props.tabID ? result() : undefined
   const files = createMemo(() => rendererDiffFiles(active()?.files ?? []))
-  const refresh = (force = false) => {
-    if (loading()) return
-    if (document.hidden || !workspace?.isConnected || !workspace.getClientRects().length) { schedule(); return }
-    // Coalesce focus/tab/visibility events with polling, including error backoff.
-    if (!force && Date.now() - model.lastFinished() < model.nextDelay()) { schedule(); return }
-    if (force || active()?.data?.revision.current) refetch()
-  }
-  const onFocus = () => refresh()
-  window.addEventListener("focus", onFocus)
-  document.addEventListener("visibilitychange", onFocus)
-  onCleanup(() => {
-    disposed = true
-    clearTimeout(poll)
-    window.removeEventListener("focus", onFocus)
-    document.removeEventListener("visibilitychange", onFocus)
-  })
+  const visible = () => !document.hidden && !!workspace?.isConnected && !!workspace.getClientRects().length
+  const { refresh } = createPolling({ loading, enabled: () => !!active()?.data?.revision.current, visible,
+    lastFinished: model.lastFinished, delay: model.nextDelay, stale: model.stale, refresh: refetch })
+  observeRepository(repositoryServices(ctx).events,
+    { server: props.session.server.id, directory: parseDiffTabID(props.tabID)!.directory },
+    ["jj.history", "jj.working-copy", "jj.bookmarks"], () => model.invalidate({ defer: !visible() }))
   createEffect(on(() => props.focusRevision, () => {
     // The host makes a cached tab visible after its focus callback.
     const frame = requestAnimationFrame(() => refresh(!active()?.data?.revision.current))
@@ -316,6 +301,7 @@ function DiffContents(props: DiffViewProps & { modelKey: string }) {
   // window level and scope to this panel instead of relying on child bubbling.
   const peekKeydown = (event: KeyboardEvent) => {
     if (event.defaultPrevented || ctx.dialogs.active()) return
+    if (event.composedPath().some((node) => node instanceof HTMLElement && node.classList.contains("jello-file-view"))) return
     if (workspace?.closest(".jello-jj-diff")?.contains(document.activeElement)) peek.keydown(event)
   }
   window.addEventListener("keydown", peekKeydown)

@@ -5,24 +5,27 @@ import { isAbsolute, relative, resolve } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
 import { CancellationTokenSource, createMessageConnection, StreamMessageReader, StreamMessageWriter } from "vscode-jsonrpc/node"
 import type { Plugin } from "@opencode/plugin"
-import { Intelligence, type LookupKind, type PeekLocation, type PeekResult } from "./rpc.ts"
+import { Intelligence, lookupKinds, type HoverResult, type LookupKind, type PeekLocation, type PeekResult, type SourceDocument } from "./rpc.ts"
 
 const require = createRequire(import.meta.url)
 const limit = 500
 const maxFileSize = 4 * 1024 * 1024
+const supportedSource = (path: string) => /\.[cm]?[jt]sx?$/i.test(path)
 const inside = (root: string, path: string) => {
   const child = relative(root, path)
   return child !== ".." && !child.startsWith("../") && !isAbsolute(child)
 }
 
-export async function readSource(path: string) {
+export async function readSource(path: string, signal?: AbortSignal) {
+  signal?.throwIfAborted()
   const file = await open(path, "r")
   try {
     const info = await file.stat()
-    if (!info.isFile() || info.size > maxFileSize) throw new Error("Peek supports text files up to 4 MiB.")
+    if (!info.isFile() || info.size > maxFileSize) throw new Error("File view supports text files up to 4 MiB.")
     const buffer = Buffer.alloc(info.size + 1)
     let bytesRead = 0
     while (bytesRead < buffer.length) {
+      signal?.throwIfAborted()
       const read = await file.read(buffer, bytesRead, buffer.length - bytesRead, bytesRead)
       if (!read.bytesRead) break
       bytesRead += read.bytesRead
@@ -37,6 +40,14 @@ export async function readSource(path: string) {
 type Position = { line: number; character: number }
 type Range = { start: Position; end: Position }
 type Location = { uri: string; range: Range } | { targetUri: string; targetRange: Range; targetSelectionRange?: Range }
+type PositionQuery = { path: string; line: number; character: number; expectedLine: string }
+type HoverContents = string | { value: string; language?: string; kind?: string } | Array<string | { value: string; language?: string }>
+
+export function hoverText(value: { contents: HoverContents } | null): string {
+  if (!value) return ""
+  const parts = Array.isArray(value.contents) ? value.contents : [value.contents]
+  return parts.map((part) => typeof part === "string" ? part : part.value).join("\n\n").slice(0, 64_000)
+}
 
 export function normalizeLocations(value: Location | Location[] | null): PeekLocation[] {
   const seen = new Set<string>()
@@ -110,7 +121,10 @@ export function createLanguageService(root: string) {
   }
   const ready = request("initialize", {
     processId: process.pid, rootUri: pathToFileURL(root).href,
-    capabilities: { general: { positionEncodings: ["utf-16"] }, textDocument: { definition: { linkSupport: true } } },
+    capabilities: { general: { positionEncodings: ["utf-16"] }, textDocument: {
+      definition: { linkSupport: true }, typeDefinition: { linkSupport: true }, implementation: { linkSupport: true },
+      hover: { contentFormat: ["plaintext", "markdown"] },
+    } },
     // A syntax-only server can return a local import alias before semantic
     // loading finishes. Peeks must always use the semantic project service.
     initializationOptions: { disableAutomaticTypingAcquisition: true, tsserver: { fallbackPath: require.resolve("typescript/lib/tsserver.js"), useSyntaxServer: "never" },
@@ -122,19 +136,27 @@ export function createLanguageService(root: string) {
   const allowed = new Set<string>()
   let queue = Promise.resolve()
   let touched = Date.now()
-  // Serialize document synchronization + requests to avoid racing concurrent panels.
-  const lookup = (input: { path: string; line: number; character: number; expectedLine: string; kind: LookupKind }, signal?: AbortSignal) => {
+  const authorizedPath = async (path: string, workspace: boolean) => {
+    const canonical = await realpath(resolve(root, path))
+    if (!(workspace && inside(root, canonical)) && !allowed.has(canonical)) {
+      throw new Error(workspace ? "The source file must be inside this workspace or an authorized language-service target." : "Peek target expired. Run the lookup again.")
+    }
+    return canonical
+  }
+  // Every position query shares document validation/synchronization and the same
+  // serialized queue. New query types must not implement a parallel stale buffer.
+  const withDocument = <T>(input: PositionQuery, signal: AbortSignal | undefined, run: (uri: string, path: string) => Promise<T>) => {
     touched = Date.now()
-    const work = queue.then(async (): Promise<PeekResult> => {
+    const work = queue.then(async (): Promise<T> => {
       await ready
       signal?.throwIfAborted()
-      const path = await realpath(resolve(root, input.path))
-      if (!inside(root, path)) throw new Error("The source file must be inside this workspace.")
-      if (!/\.[cm]?[jt]sx?$/i.test(path)) throw new Error("Code peeks currently support TypeScript and JavaScript files.")
-      const text = await readSource(path)
+      const path = await authorizedPath(input.path, true)
+      if (!supportedSource(path)) throw new Error("Language queries currently support TypeScript and JavaScript files.")
+      const text = await readSource(path, signal)
       const lines = text.split(/\r?\n/)
-      if (lines[input.line] !== input.expectedLine.replace(/\r?\n$/, "") || input.character >= (lines[input.line]?.length ?? 0)) {
-        throw new Error("This diff no longer matches the working-copy file. Refresh the diff and try again.")
+      if (!Number.isInteger(input.line) || input.line < 0 || !Number.isInteger(input.character) || input.character < 0
+        || lines[input.line] !== input.expectedLine.replace(/\r?\n$/, "") || input.character >= (lines[input.line]?.length ?? 0)) {
+        throw new Error("The displayed source no longer matches the working-copy file. Refresh it and try again.")
       }
       // Refresh other opened files too: external edits must not leave tsserver's
       // in-memory buffers stale. The open-document set is bounded below.
@@ -161,28 +183,48 @@ export function createLanguageService(root: string) {
         const languageId = /\.tsx$/i.test(path) ? "typescriptreact" : /\.jsx$/i.test(path) ? "javascriptreact" : /\.[cm]?ts$/i.test(path) ? "typescript" : "javascript"
         await connection.sendNotification("textDocument/didOpen", { textDocument: { uri, languageId, version: 1, text } })
       }
-      const value = await request<Location | Location[] | { range: Range }[] | null>(`textDocument/${input.kind}`, {
-        textDocument: { uri }, position: { line: input.line, character: input.character },
-        ...(input.kind === "references" ? { context: { includeDeclaration: false } } : {}),
-      }, signal)
-      const all = normalizeLocations(input.kind === "documentHighlight"
-        ? ((value ?? []) as { range: Range }[]).map((highlight) => ({ uri, range: highlight.range }))
-        : value as Location | Location[] | null)
-      const locations = all.slice(0, limit)
-      // Only server-returned targets can be read through source(), including
-      // dependency declarations outside the workspace. Never expose arbitrary fs reads.
-      for (const location of locations) allowed.add(location.path)
-      if (allowed.size > 10000) { allowed.clear(); for (const location of locations) allowed.add(location.path) }
-      return { locations, truncated: all.length > limit, sameFile: all.length > 0 && all.every((location) => location.path === path) }
+      signal?.throwIfAborted()
+      return run(uri, path)
     })
     queue = work.then(() => {}, () => {})
     return work
   }
-  return { lookup, stop, ready, get stopped() { return stopped }, get touched() { return touched },
+  const lookup = (input: PositionQuery & { kind: LookupKind }, signal?: AbortSignal) => withDocument(input, signal, async (uri, path): Promise<PeekResult> => {
+    if (!lookupKinds.includes(input.kind)) throw new Error("Unsupported language query.")
+    const value = await request<Location | Location[] | { range: Range }[] | null>(`textDocument/${input.kind}`, {
+      textDocument: { uri }, position: { line: input.line, character: input.character },
+      ...(input.kind === "references" ? { context: { includeDeclaration: false } } : {}),
+    }, signal)
+    const all = normalizeLocations(input.kind === "documentHighlight"
+      ? ((value ?? []) as { range: Range }[]).map((highlight) => ({ uri, range: highlight.range }))
+      : value as Location | Location[] | null)
+    const candidates = all.slice(0, limit)
+    // External files must be LSP-returned targets. Authorize canonical paths,
+    // never mutable symlink aliases; deduplicate filesystem work for references.
+    if (allowed.size > 10000) allowed.clear()
+    const canonicalPaths = await Promise.all([...new Set(candidates.map((location) => location.path))].map(async (path) => {
+      try { return [path, await realpath(path)] as const } catch { return [path, path] as const }
+    }))
+    const paths = new Map(canonicalPaths)
+    for (const [, path] of canonicalPaths) allowed.add(path)
+    const locations = candidates.map((location) => ({ ...location, path: paths.get(location.path) ?? location.path }))
+    return { locations, truncated: all.length > limit, sameFile: all.length > 0 && all.every((location) => (paths.get(location.path) ?? location.path) === path) }
+  })
+  const hover = (input: PositionQuery, signal?: AbortSignal) => withDocument(input, signal, async (uri): Promise<HoverResult> => {
+    const value = await request<{ contents: HoverContents } | null>("textDocument/hover", {
+      textDocument: { uri }, position: { line: input.line, character: input.character },
+    }, signal)
+    return { text: hoverText(value) }
+  })
+  return { lookup, hover, stop, ready, get stopped() { return stopped }, get touched() { return touched },
+    async document(path: string, signal?: AbortSignal): Promise<SourceDocument> {
+      touched = Date.now()
+      const canonical = await authorizedPath(path, true)
+      return { path: canonical, text: await readSource(canonical, signal), queryable: supportedSource(canonical) }
+    },
     async source(path: string, line: number) {
       touched = Date.now()
-      if (!allowed.has(path)) throw new Error("Peek target expired. Run the lookup again.")
-      const lines = (await readSource(path)).split(/\r?\n/)
+      const lines = (await readSource(await authorizedPath(path, false))).split(/\r?\n/)
       const startLine = Math.max(0, Math.min(line, lines.length - 1) - 8)
       return { startLine, lines: lines.slice(startLine, Math.min(lines.length, line + 24)) }
     },
@@ -207,6 +249,21 @@ export async function setupIntelligence(ctx: Plugin.Context) {
     return value
   }
   const registration = await ctx.rpc.register(Intelligence, {
+    document: async (input, context) => {
+      const { directory, path } = input as { directory: string; path: string }
+      const root = await realpath(directory)
+      const existing = services.get(root)
+      if (existing && !existing.stopped) return existing.document(path, context.signal)
+      // Browsing a workspace file does not start a language-server process.
+      // Outside-workspace dependencies require a still-live authorization.
+      const canonical = await realpath(resolve(root, path))
+      if (!inside(root, canonical)) throw new Error("Peek target expired. Run the lookup again.")
+      return { path: canonical, text: await readSource(canonical, context.signal), queryable: supportedSource(canonical) }
+    },
+    hover: async (input, context) => {
+      const value = input as PositionQuery & { directory: string }
+      return (await service(value.directory)).hover(value, context.signal)
+    },
     restart: async (input) => {
       const { directory } = input as { directory: string }
       const root = await realpath(directory)

@@ -3,9 +3,13 @@ import { setupJJ } from "../features/jj/gui"
 import type { definition } from "./definition"
 import { SettingsView } from "./settings"
 import css from "./style.css?inline"
+import { createRepositoryServices, RepositoryServices } from "../shared/gui/repository"
+import { setupIntelligence } from "../features/intelligence/gui"
 
 // Shared Jello window setup. Each feature registers its own contributions.
 export const setup: Plugin.Setup<typeof definition> = (ctx) => {
+  ctx.provide(RepositoryServices, createRepositoryServices())
+  setupIntelligence(ctx)
   ctx.add(Style, css)
   setupJJ(ctx)
 

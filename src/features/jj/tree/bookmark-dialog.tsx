@@ -1,7 +1,8 @@
 import { createMemo, createSignal, createUniqueId, For, onMount, Show } from "solid-js"
 import { usePlugin } from "@opencode/plugin/gui"
-import { errorMessage } from "../errors"
+import { errorMessage } from "../../../shared/errors"
 import { matchingBookmarks } from "./bookmark-completion"
+import { createAsyncAction } from "../../../shared/gui/async-action"
 
 export function BookmarkDialog(props: {
   changeID: string
@@ -15,9 +16,10 @@ export function BookmarkDialog(props: {
   const [names, setNames] = createSignal<string[]>([])
   const [name, setName] = createSignal("")
   const [loading, setLoading] = createSignal(true)
-  const [busy, setBusy] = createSignal(false)
+  const action = createAsyncAction({ toast: ctx.toast })
+  const busy = action.pending
   const [loadError, setLoadError] = createSignal("")
-  const [error, setError] = createSignal("")
+  const error = action.error
   const [active, setActive] = createSignal(-1)
   let input!: HTMLInputElement
   const matches = createMemo(() => matchingBookmarks(names(), name()))
@@ -39,14 +41,10 @@ export function BookmarkDialog(props: {
   const choose = (value: string) => { setName(value); setActive(-1); input.focus() }
   const submit = async (value = selectedName()) => {
     if (busy() || loading() || loadError() || !value) return
-    setBusy(true)
-    setError("")
-    try {
+    await action.run(async () => {
       await props.save(value)
       props.close()
-      ctx.toast.show({ variant: "success", title: `Bookmark ${value} set` })
-    } catch (error) { setError(errorMessage(error)) }
-    finally { setBusy(false) }
+    }, { success: `Bookmark ${value} set` })
   }
   return <ui.Dialog title="Set bookmark" description={`Choose or create a bookmark on ${props.changeID.slice(0, 8)}.`}
     footer={<div class="jello-jj-actions">
@@ -60,7 +58,7 @@ export function BookmarkDialog(props: {
         placeholder="Search bookmarks or enter a new name" value={name()} disabled={busy()} autofocus autocomplete="off"
         aria-autocomplete="list" aria-expanded={!loading() && !loadError() && options().length > 0}
         aria-controls={`${id}-options`} aria-activedescendant={activeIndex() >= 0 ? `${id}-option-${activeIndex()}` : undefined}
-        onInput={(event) => { setName(event.currentTarget.value); setActive(-1); setError("") }}
+        onInput={(event) => { setName(event.currentTarget.value); setActive(-1); action.clearError() }}
         onKeyDown={(event) => {
           if (event.isComposing) return
           if (event.key === "ArrowDown" || event.key === "ArrowUp") {

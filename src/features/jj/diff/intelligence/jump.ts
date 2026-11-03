@@ -1,5 +1,5 @@
 import type { FileDiffMetadata } from "@pierre/diffs"
-import type { PeekKind, PeekResult } from "./rpc"
+import type { PeekKind, PeekResult } from "../../../intelligence/rpc"
 
 export function localDefinition(kind: PeekKind, result: PeekResult) {
   return kind === "definition" && result.sameFile && result.locations.length === 1 ? result.locations[0] : undefined

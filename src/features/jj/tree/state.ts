@@ -1,5 +1,5 @@
-import { createLatest, type MountedSession } from "@opencode/plugin/gui"
-import { createSignal, untrack } from "solid-js"
+import type { MountedSession } from "@opencode/plugin/gui"
+import { createResourceModel } from "../../../shared/gui/resource"
 import { Status } from "../rpc"
 import type { TreeHistory } from "./model"
 import type { ChangedFile } from "../changed-files"
@@ -7,30 +7,25 @@ import type { ChangedFile } from "../changed-files"
 type Client = MountedSession["server"]["client"]
 
 export function createHistoryModel(directory: string) {
-  const [request, setRequest] = createSignal<{ client: Client; limit: number; revision: number }>()
-  const history = createLatest(request, async ({ client, limit }) =>
-    await client.rpc(Status).tree({ directory, limit }) as TreeHistory)
+  const resource = createResourceModel<{ client: Client; limit: number; revision: number }, TreeHistory>(
+    async ({ client, limit }, signal) => await client.rpc(Status).tree({ directory, limit }, { signal }) as TreeHistory,
+    { equals: (a, b) => a.client === b.client && a.limit === b.limit && a.revision === b.revision })
   return {
-    history,
+    ...resource, history: resource.result,
     configure(client: Client, limit: number, revision: number) {
-      const previous = untrack(request)
-      if (previous?.client === client && previous.limit === limit && previous.revision === revision) return
-      setRequest({ client, limit, revision })
+      resource.configure({ client, limit, revision })
     },
-    refresh() { setRequest((previous) => previous && { ...previous }) },
   }
 }
 
 export function createRevisionFilesModel(directory: string, commitID: string) {
-  const [request, setRequest] = createSignal<{ client: Client }>()
-  const files = createLatest(request, async ({ client }) =>
-    await client.rpc(Status).revisionFiles({ directory, commitID }) as ChangedFile[])
+  const resource = createResourceModel<Client, ChangedFile[]>(async (client, signal) =>
+    await client.rpc(Status).revisionFiles({ directory, commitID }, { signal }) as ChangedFile[])
   return {
-    files,
+    ...resource, files: resource.result,
     configure(client: Client) {
-      if (untrack(request)?.client !== client) setRequest({ client })
+      resource.configure(client)
     },
-    refresh() { setRequest((previous) => previous && { ...previous }) },
   }
 }
 

@@ -4,7 +4,7 @@ import { createRoot } from "solid-js"
 import { unwrap } from "solid-js/store"
 import { isServer } from "solid-js/web"
 import type { MountedSession } from "@opencode/plugin/gui"
-import { ViewModels } from "../view-models"
+import { ViewModels } from "../../../shared/gui/view-models"
 import { createHistoryModel, type HistoryModel } from "./state"
 import type { TreeHistory } from "./model"
 

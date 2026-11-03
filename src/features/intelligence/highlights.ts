@@ -1,6 +1,11 @@
-import { createEffect, onCleanup, untrack } from "solid-js"
-import type { CodePeek } from "./peek"
+import { createEffect, onCleanup, untrack, type Accessor } from "solid-js"
 import type { PeekLocation } from "./rpc"
+
+export interface SymbolHighlights {
+  target: Accessor<{ path: string; line: number; character: number } | undefined>
+  occurrences: Accessor<PeekLocation[]>
+  definition: Accessor<PeekLocation | undefined>
+}
 
 export function occurrenceSlice(location: PeekLocation, line: number, start: number, length: number) {
   if (line < location.line || line > location.endLine) return
@@ -45,7 +50,7 @@ export function mergeOccurrenceBoxes(boxes: OccurrenceBox[]) {
 
 // Custom Highlight pseudo-elements cannot draw rounded borders. Paint small,
 // noninteractive range overlays instead, leaving Pierre's token DOM untouched.
-export function createOccurrenceHighlights(peek: CodePeek) {
+export function createOccurrenceHighlights(peek: SymbolHighlights) {
   const roots = new Map<HTMLElement, { path: string; layer: HTMLElement; root: ShadowRoot | HTMLElement }>()
   let frame: number | undefined
   const schedule = () => {

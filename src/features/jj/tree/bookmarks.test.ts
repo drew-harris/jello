@@ -17,6 +17,12 @@ test("bookmark setting validates commit IDs and names before running JJ", async 
   }
 })
 
+test("an already-cancelled bookmark read rejects without starting a command", async () => {
+  const controller = new AbortController()
+  controller.abort(new Error("cancelled"))
+  await assert.rejects(listBookmarks("/nonexistent", controller.signal), /cancelled/)
+})
+
 test("bookmarks list is cached, creates names, and moves an existing bookmark backwards", async () => {
   const directory = await mkdtemp(join(tmpdir(), "jello-bookmarks-"))
   const jj = (args: string[]) => execute("jj", args, { cwd: directory })

@@ -1,4 +1,5 @@
 import { createRoot, getOwner, onCleanup, type Owner } from "solid-js"
+import { repositoryKey } from "../repository"
 
 // Models belong to the plugin window, not the component acquiring them. Only
 // unused models can be evicted; disposing one also aborts its createLatest work.
@@ -13,13 +14,27 @@ export class ViewModels<T> {
     })
   }
 
-  use(key: string, create: () => T): T {
+  private acquire(key: string, create: () => T) {
     let entry = this.entries.get(key)
     if (!entry) {
       entry = createRoot((dispose) => ({ value: create(), dispose, users: 0 }), this.owner)
     }
     this.entries.delete(key)
     this.entries.set(key, entry)
+    return entry
+  }
+
+  // Start work during an explicit navigation intent, before the panel mounts.
+  // Preparation happens before trimming, so a cancelled preload cannot launch
+  // new work from an already-disposed root. Active models are never evicted.
+  preload(key: string, create: () => T, prepare: (value: T) => void): void {
+    const entry = this.acquire(key, create)
+    prepare(entry.value)
+    this.trim()
+  }
+
+  use(key: string, create: () => T): T {
+    const entry = this.acquire(key, create)
     entry.users++
     const retained = entry
     onCleanup(() => { retained.users--; this.trim() })
@@ -37,4 +52,4 @@ export class ViewModels<T> {
   }
 }
 
-export const repositoryViewKey = (server: string, directory: string) => JSON.stringify([server, directory])
+export const repositoryViewKey = (server: string, directory: string) => repositoryKey({ server, directory })

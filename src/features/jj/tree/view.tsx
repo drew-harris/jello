@@ -2,7 +2,7 @@ import { createEffect, createMemo, createSignal, For, on, onCleanup, Show } from
 import { createStore, reconcile } from "solid-js/store"
 import { usePlugin, type MountedSession } from "@opencode/plugin/gui"
 import { Status } from "../rpc"
-import { errorMessage } from "../errors"
+import { errorMessage } from "../../../shared/errors"
 import { openRevisionDiff } from "../diff/navigation"
 import { revisionAge } from "../diff/time"
 import { edgePath, graphRowID, laneX, layoutHistory, rowOffsets, ROW_HEIGHT } from "./layout"
@@ -15,8 +15,13 @@ import { BookmarkDialog } from "./bookmark-dialog"
 import { treeShortcut } from "./shortcuts"
 import { SquashDialog } from "./squash-dialog"
 import type { SquashDetails } from "./squash-model"
-import { repositoryViewKey, type ViewModels } from "../view-models"
+import { repositoryViewKey, type ViewModels } from "../../../shared/gui/view-models"
 import { createHistoryModel, type HistoryModel, type RevisionFilesModel } from "./state"
+import { createAsyncAction } from "../../../shared/gui/async-action"
+import { createPolling } from "../../../shared/gui/poll"
+import { observeRepository, repositoryServices, sessionRepository } from "../../../shared/gui/repository"
+import { JJ_CHANGED } from "../invalidation"
+import { createChangeActions } from "./actions"
 
 function ChangeID(props: { commit: TreeCommit }) {
   const label = () => changeIDLabel(props.commit)
@@ -25,7 +30,7 @@ function ChangeID(props: { commit: TreeCommit }) {
   </span>
 }
 
-export function TreeView(props: { session: MountedSession; models: ViewModels<HistoryModel>; filesModels: ViewModels<RevisionFilesModel>; revision: number; focusRequest: number; onChanged(): void }) {
+export function TreeView(props: { session: MountedSession; models: ViewModels<HistoryModel>; filesModels: ViewModels<RevisionFilesModel>; focusRequest: number }) {
   const ctx = usePlugin<typeof definition>()
   const ui = ctx.ui
   let panel!: HTMLDivElement
@@ -57,11 +62,12 @@ export function TreeView(props: { session: MountedSession; models: ViewModels<Hi
       expansionState().set({ directory: props.session.directory, changes: value.changes.filter((id) => id === commit.changeID) })
     }
   }
-  const [abandoning, setAbandoning] = createSignal(false)
-  const [creating, setCreating] = createSignal(false)
-  const [editing, setEditing] = createSignal(false)
-  const [squashing, setSquashing] = createSignal(false)
-  const [pushing, setPushing] = createSignal(false)
+  const repositories = repositoryServices(ctx)
+  const repository = sessionRepository(props.session)
+  const gate = repositories.gate(repository)
+  const mutation = createAsyncAction({ toast: ctx.toast, gate })
+  const creation = createAsyncAction({ toast: ctx.toast, gate })
+  const changed = () => repositories.events.invalidate(repository, JJ_CHANGED)
   const expansionState = () => ctx.stores.jjTreeExpanded(props.session)
   const expanded = createMemo(() => {
     const value = expansionState().value
@@ -74,14 +80,16 @@ export function TreeView(props: { session: MountedSession; models: ViewModels<Hi
     else next.add(changeID)
     expansionState().set({ directory: props.session.directory, changes: Array.from(next) })
   }
-  const mutating = () => abandoning() || creating() || editing() || squashing() || pushing()
+  const mutating = gate.pending
   const [contextMenu, setContextMenu] = createSignal<{ x: number; y: number; commit: TreeCommit; trigger: HTMLButtonElement }>()
   const buttons = new Map<string, HTMLButtonElement>()
   const model = props.models.use(repositoryViewKey(props.session.server.id, props.session.directory),
     () => createHistoryModel(props.session.directory))
   const history = model.history
   const refetch = model.refresh
-  createEffect(() => model.configure(props.session.server.client, limit(), props.revision))
+  createEffect(() => model.configure(props.session.server.client, limit(), 0))
+  const visible = () => !document.hidden && !!panel?.isConnected && !!panel.getClientRects().length
+  observeRepository(repositories.events, repository, ["jj.history", "jj.bookmarks"], () => model.invalidate({ defer: !visible() }))
   const commits = () => history.latest?.commits ?? []
   const [graphState, setGraph] = createStore<ReturnType<typeof layoutHistory>>({ rows: [], lanes: 1 })
   // Retain keyed row/component identities when polling returns fresh objects.
@@ -129,15 +137,8 @@ export function TreeView(props: { session: MountedSession; models: ViewModels<Hi
   }
   const root = (id: string) => /^0+$/.test(id)
   const refresh = () => { if (!history.loading && !mutating()) void refetch() }
-  const onFocus = () => { if (!document.hidden) refresh() }
-  const timer = setInterval(onFocus, 10_000)
-  window.addEventListener("focus", onFocus)
-  document.addEventListener("visibilitychange", onFocus)
-  onCleanup(() => {
-    clearInterval(timer)
-    window.removeEventListener("focus", onFocus)
-    document.removeEventListener("visibilitychange", onFocus)
-  })
+  createPolling({ loading: () => history.loading, enabled: () => !mutating(), visible,
+    lastFinished: model.lastFinished, delay: model.nextDelay, stale: model.stale, refresh })
   const choose = (index: number, focus = false) => {
     const commit = commits()[index]
     if (!commit) return
@@ -178,6 +179,7 @@ export function TreeView(props: { session: MountedSession; models: ViewModels<Hi
     if (!target || target.immutable || root(target.commitID) || mutating()) return
     const directory = props.session.directory
     const client = props.session.server.client
+    const commitID = target.commitID
     if (confirm) {
       if (confirming()) return
       setConfirming(true)
@@ -192,59 +194,42 @@ export function TreeView(props: { session: MountedSession; models: ViewModels<Hi
       }
       if (mutating() || props.session.directory !== directory || props.session.server.client !== client) return
     }
-    setAbandoning(true)
     closeMenu(true)
-    const progress = ctx.toast.show({ variant: "loading", title: `Abandoning ${target.changeID.slice(0, 8)}…`, persistent: true })
-    try {
-      await client.rpc(Status).abandon({ directory, commitID: target.commitID })
-      props.onChanged()
-      ctx.toast.show({ variant: "success", title: "Change abandoned" })
-    } catch (error) {
-      ctx.toast.show({ variant: "error", title: "Could not abandon change", description: errorMessage(error) })
-    } finally {
-      progress.dismiss()
-      setAbandoning(false)
-    }
+    await mutation.run(async () => { await client.rpc(Status).abandon({ directory, commitID }) }, {
+      progress: `Abandoning ${target.changeID.slice(0, 8)}…`, success: "Change abandoned", failure: "Could not abandon change", onSuccess: changed,
+    })
   }
   const describeChange = (target: TreeCommit | undefined) => {
     if (!target || target.immutable || root(target.commitID) || mutating()) return
     const directory = props.session.directory
     const client = props.session.server.client
+    const commitID = target.commitID
     closeMenu(true)
     ctx.dialogs.open((dialog) => <DescribeDialog changeID={target.changeID} description={target.description}
       close={dialog.close} describe={async (message) => {
-        await client.rpc(Status).describe({ directory, commitID: target.commitID, message })
-        props.onChanged()
+        await mutation.run(async () => { await client.rpc(Status).describe({ directory, commitID, message }) }, { rethrow: true, onSuccess: changed })
       }} />)
   }
   const editChange = async (target: TreeCommit) => {
     if (target.immutable || root(target.commitID) || mutating()) return
     const directory = props.session.directory
     const client = props.session.server.client
-    setEditing(true)
     closeMenu(true)
-    const progress = ctx.toast.show({ variant: "loading", title: `Switching to ${target.changeID.slice(0, 8)}…`, persistent: true })
-    try {
-      await client.rpc(Status).edit({ directory, commitID: target.commitID })
-      props.onChanged()
-      ctx.toast.show({ variant: "success", title: "Working copy switched to change" })
-    } catch (error) {
-      ctx.toast.show({ variant: "error", title: "Could not edit change", description: errorMessage(error) })
-    } finally {
-      progress.dismiss()
-      setEditing(false)
-    }
+    const commitID = target.commitID
+    await mutation.run(async () => { await client.rpc(Status).edit({ directory, commitID }) }, {
+      progress: `Switching to ${target.changeID.slice(0, 8)}…`, success: "Working copy switched to change", failure: "Could not edit change", onSuccess: changed,
+    })
   }
   const bookmarkChange = (target: TreeCommit) => {
     if (mutating()) return
     const directory = props.session.directory
     const client = props.session.server.client
+    const commitID = target.commitID
     closeMenu(true)
     ctx.dialogs.open((dialog) => <BookmarkDialog changeID={target.changeID} close={dialog.close}
       load={async () => await client.rpc(Status).bookmarks({ directory }) as string[]}
       save={async (name) => {
-        await client.rpc(Status).setBookmark({ directory, commitID: target.commitID, name })
-        props.onChanged()
+        await mutation.run(async () => { await client.rpc(Status).setBookmark({ directory, commitID, name }) }, { rethrow: true, onSuccess: changed })
       }} />)
   }
 
@@ -253,25 +238,14 @@ export function TreeView(props: { session: MountedSession; models: ViewModels<Hi
     const directory = props.session.directory
     const client = props.session.server.client
     const commitID = target.commitID
-    setPushing(true)
     closeMenu(true)
-    const progress = ctx.toast.show({ variant: "loading", title: "Pushing bookmarks to Git…", persistent: true })
-    try {
-      await client.rpc(Status).gitPush({ directory, commitID })
-      props.onChanged()
-      ctx.toast.show({ variant: "success", title: "Bookmarks pushed" })
-    } catch (error) {
-      ctx.toast.show({ variant: "error", title: "Could not push bookmarks", description: errorMessage(error) })
-    } finally {
-      progress.dismiss()
-      setPushing(false)
-    }
+    await mutation.run(async () => { await client.rpc(Status).gitPush({ directory, commitID }) }, {
+      progress: "Pushing bookmarks to Git…", success: "Bookmarks pushed", failure: "Could not push bookmarks", onSuccess: changed,
+    })
   }
 
-  const squashDisabled = (target: TreeCommit) => target.immutable || !target.parents.length || mutating()
-    || target.parents.every((id) => root(id) || commits().find((commit) => commit.commitID === id)?.immutable === true)
   const squashChange = (target: TreeCommit) => {
-    if (squashDisabled(target)) return
+    if (mutating()) return
     const directory = props.session.directory
     const client = props.session.server.client
     // Copy the exact source ID: polling may reconcile and mutate the row object.
@@ -280,16 +254,9 @@ export function TreeView(props: { session: MountedSession; models: ViewModels<Hi
     ctx.dialogs.open((dialog) => <SquashDialog changeID={target.changeID} close={dialog.close}
       load={async () => await client.rpc(Status).squashDetails({ directory, commitID }) as SquashDetails}
       save={async (parentID, message) => {
-        if (mutating()) throw new Error("Another change operation is still running.")
-        setSquashing(true)
-        const progress = ctx.toast.show({ variant: "loading", title: "Squashing change into parent…", persistent: true })
-        try {
+        await mutation.run(async () => {
           await client.rpc(Status).squashBelow({ directory, commitID, parentID, ...(message !== undefined ? { message } : {}) })
-          props.onChanged()
-        } finally {
-          progress.dismiss()
-          setSquashing(false)
-        }
+        }, { progress: "Squashing change into parent…", rethrow: true, onSuccess: changed })
       }} />)
   }
 
@@ -297,19 +264,21 @@ export function TreeView(props: { session: MountedSession; models: ViewModels<Hi
     if (mutating()) return
     const directory = props.session.directory
     const client = props.session.server.client
-    setCreating(true)
     closeMenu()
-    try {
-      await client.rpc(Status).newChange({ directory, ...(commitID ? { commitID } : {}) })
-      props.onChanged()
-      ctx.toast.show({ variant: "success", title: "New change created" })
-    } catch (error) {
-      ctx.toast.show({ variant: "error", title: "Could not create change", description: errorMessage(error) })
-    } finally {
-      setCreating(false)
-    }
+    await creation.run(async () => { await client.rpc(Status).newChange({ directory, ...(commitID ? { commitID } : {}) }) }, {
+      success: "New change created", failure: "Could not create change", onSuccess: changed,
+    })
   }
 
+  const actions = createChangeActions({ busy: mutating, commits, run(id, target, source) {
+    if (id === "new") return createChange(target.commitID)
+    if (id === "edit") return editChange(target)
+    if (id === "describe") return describeChange(target)
+    if (id === "bookmark") return bookmarkChange(target)
+    if (id === "squash") return squashChange(target)
+    if (id === "push") return pushChange(target)
+    return abandonChange(target, source === "keyboard")
+  } })
   const onShortcut = (event: KeyboardEvent) => {
     // Portaled menus/dialogs and editable controls must never drive the tree.
     if (event.defaultPrevented || !panel.contains(document.activeElement) || ctx.dialogs.active() || confirming() || contextMenu()) return
@@ -329,13 +298,8 @@ export function TreeView(props: { session: MountedSession; models: ViewModels<Hi
     const index = commits().findIndex((commit) => commit.commitID === target.commitID)
     if (action === "down" || action === "up") {
       choose(Math.max(0, Math.min(commits().length - 1, index + (action === "down" ? 1 : -1))), true)
-    } else if (action === "new") void createChange(target.commitID)
-    else if (action === "bookmark") bookmarkChange(target)
-    else if (action === "abandon") void abandonChange(target, true)
+    } else if (actions.some((item) => item.id === action)) void actions.find((item) => item.id === action)!.run(target, "keyboard")
     else if (action === "diff") openDiff()
-    else if (action === "edit") void editChange(target)
-    else if (action === "describe") describeChange(target)
-    else if (action === "squash") squashChange(target)
     else if (!expanded().has(target.changeID)) {
       setSelection(target)
       toggleFiles(target.changeID)
@@ -363,7 +327,7 @@ export function TreeView(props: { session: MountedSession; models: ViewModels<Hi
       </div>
       <div class="jello-jj-tree-tools" role="group" aria-label="History actions">
       <button type="button" class="jello-jj-tree-tool" title="New change (jj new)" aria-label="New change"
-        disabled={history.loading || mutating()} aria-busy={creating()} onClick={() => void createChange()}>
+        disabled={history.loading || mutating()} aria-busy={creation.pending()} onClick={() => void createChange()}>
         <span aria-hidden="true"><ui.Icon name="plus-small" size="small" /></span>
       </button>
       <button type="button" class="jello-jj-tree-tool is-working-copy" title="Jump to working copy" aria-label="Jump to working copy" disabled={!commits().some((commit) => commit.current)} onClick={jump}>@</button>
@@ -486,13 +450,6 @@ export function TreeView(props: { session: MountedSession; models: ViewModels<Hi
       </div>
     </Show>
     <Show keyed when={contextMenu()}>{(menu) => <ChangeContextMenu x={menu.x} y={menu.y}
-      disabled={menu.commit.immutable || root(menu.commit.commitID) || mutating()}
-      newDisabled={mutating()} newChange={() => void createChange(menu.commit.commitID)}
-      setBookmark={() => bookmarkChange(menu.commit)}
-      pushDisabled={mutating() || root(menu.commit.commitID) || !menu.commit.bookmarks.length}
-      push={() => void pushChange(menu.commit)}
-      edit={() => void editChange(menu.commit)}
-      squashDisabled={squashDisabled(menu.commit)} squash={() => squashChange(menu.commit)}
-      close={closeMenu} abandon={() => void abandonChange()} describe={() => describeChange(menu.commit)} />}</Show>
+      target={menu.commit} actions={actions} close={closeMenu} />}</Show>
   </div>
 }

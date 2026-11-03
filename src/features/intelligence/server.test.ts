@@ -1,9 +1,9 @@
 import { strict as assert } from "node:assert"
 import { test } from "node:test"
-import { mkdir, mkdtemp, rm, writeFile, realpath } from "node:fs/promises"
+import { mkdir, mkdtemp, rm, writeFile, realpath, symlink } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { createLanguageService, normalizeLocations, readSource, setupIntelligence } from "./server"
+import { createLanguageService, hoverText, normalizeLocations, readSource, setupIntelligence } from "./server"
 import { Intelligence } from "./rpc"
 import type { Plugin } from "@opencode/plugin"
 
@@ -13,6 +13,14 @@ test("normalizes locations and links, deduplicating targets and excluding non-fi
   assert.deepEqual(normalizeLocations([location, location, { targetUri: location.uri, targetRange: range, targetSelectionRange: range },
     { uri: "https://example.com/file", range }]), [{ path: "/repo/a b.ts", line: 2, character: 3, endLine: 2, endCharacter: 9 }])
   assert.deepEqual(normalizeLocations(null), [])
+})
+
+test("hover payloads normalize every LSP content shape without interpreting HTML", () => {
+  assert.equal(hoverText(null), "")
+  assert.equal(hoverText({ contents: "plain" }), "plain")
+  assert.equal(hoverText({ contents: { kind: "markdown", value: "**value** <script>unsafe()</script>" } }), "**value** <script>unsafe()</script>")
+  assert.equal(hoverText({ contents: [{ language: "typescript", value: "const value: number" }, "Docs"] }), "const value: number\n\nDocs")
+  assert.equal(hoverText({ contents: "x".repeat(100_000) }).length, 64_000)
 })
 
 test("intelligence RPC schemas do not include host-unsupported regex validation", () => {
@@ -107,6 +115,54 @@ test("real LSP peeks resolve definitions, references and changed files without p
     await assert.rejects(readSource(join(root, "binary.ts")), /binary/)
     await writeFile(join(root, "large.ts"), Buffer.alloc(4 * 1024 * 1024 + 1, "a"))
     await assert.rejects(readSource(join(root, "large.ts")), /4 MiB/)
+  } finally {
+    service.stop()
+    await rm(fixture, { recursive: true, force: true })
+  }
+})
+
+test("full file views support type definitions, implementations, hover and authorized dependency navigation", { timeout: 60_000 }, async () => {
+  await mkdir(join(tmpdir(), "opencode"), { recursive: true })
+  const fixture = await realpath(await mkdtemp(join(tmpdir(), "opencode", "jello-file-view-")))
+  const root = join(fixture, "workspace")
+  await mkdir(root)
+  const dependency = join(fixture, "dependency.ts")
+  const secret = join(fixture, "secret.ts")
+  await writeFile(dependency, "export const dependency = 42\nexport function external() { return dependency }\n")
+  await writeFile(secret, "export const secret = 'not authorized'\n")
+  await symlink(secret, join(root, "escape.ts"))
+  await writeFile(join(root, "tsconfig.json"), JSON.stringify({ compilerOptions: { target: "ESNext", module: "ESNext" }, include: ["*.ts"] }))
+  await writeFile(join(root, "lib.ts"), "export interface Shape { size: number }\nexport class Square implements Shape { size = 2 }\nexport const square: Shape = new Square()\n")
+  const lines = ["import { square, Shape } from './lib'", "export const size = square.size", "import { external } from '../dependency'", "external()",
+    ...Array.from({ length: 120 }, (_, index) => `// unchanged line ${index}`), "console.log(size)"]
+  const contents = lines.join("\n")
+  await writeFile(join(root, "main.ts"), contents)
+  const service = createLanguageService(root)
+  try {
+    const document = await service.document("main.ts")
+    assert.equal(document.text, contents, "return the whole file, not a preview around the selected line")
+    assert.equal(document.queryable, true)
+    assert.equal((await service.document("tsconfig.json")).queryable, false)
+    await assert.rejects(service.document(dependency), /workspace|authorized/)
+    await assert.rejects(service.document("escape.ts"), /workspace|authorized/)
+    const square = { path: "main.ts", line: 1, character: lines[1].indexOf("square"), expectedLine: lines[1] }
+    const types = await service.lookup({ ...square, kind: "typeDefinition" })
+    assert.ok(types.locations.some((location) => location.path === join(root, "lib.ts") && location.line === 0))
+    const implementations = await service.lookup({ path: "main.ts", line: 0, character: lines[0].indexOf("Shape"), expectedLine: lines[0], kind: "implementation" })
+    assert.ok(implementations.locations.some((location) => location.path === join(root, "lib.ts") && location.line === 1))
+    assert.match((await service.hover(square)).text, /Shape/)
+    await assert.rejects(service.hover({ ...square, expectedLine: "stale source" }), /no longer matches/)
+    await service.lookup({ path: "main.ts", line: 3, character: 1, expectedLine: lines[3], kind: "definition" })
+    const outside = await service.document(dependency)
+    assert.equal(outside.path, dependency)
+    assert.match(outside.text, /export const dependency/)
+    const outsideLine = "export function external() { return dependency }"
+    const value = await service.hover({ path: dependency, line: 1, character: outsideLine.indexOf("dependency"), expectedLine: outsideLine })
+    assert.match(value.text, /dependency/)
+    await assert.rejects(service.document(secret), /workspace|authorized/)
+    const cancelled = new AbortController()
+    cancelled.abort()
+    await assert.rejects(service.document("main.ts", cancelled.signal))
   } finally {
     service.stop()
     await rm(fixture, { recursive: true, force: true })

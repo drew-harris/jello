@@ -1,11 +1,21 @@
-import { createResource, For, onCleanup, Show } from "solid-js"
+import { createEffect, For, Show } from "solid-js"
 import { usePlugin } from "@opencode/plugin/gui"
-import { Status } from "./rpc"
 import type { definition } from "../../gui/definition"
 import { summarizeStatus } from "./status-summary"
-import type { Overview, Revision } from "./overview"
+import type { Revision } from "./overview"
 import { openRevisionDiff } from "./diff/navigation"
-import { errorMessage } from "./errors"
+import { errorMessage } from "../../shared/errors"
+import { createPolling } from "../../shared/gui/poll"
+import { observeRepository, repositoryServices, sessionRepository } from "../../shared/gui/repository"
+import { repositoryViewKey, type ViewModels } from "../../shared/gui/view-models"
+import { createStatusModel, type StatusModel } from "./status-model"
+
+export function StatusBar(props: { models: ViewModels<StatusModel> }) {
+  const ctx = usePlugin()
+  return <Show keyed when={ctx.sessions.current() && repositoryViewKey(ctx.sessions.current()!.server.id, ctx.sessions.current()!.directory)}>
+    {(_key) => <StatusContents models={props.models} />}
+  </Show>
+}
 
 function RevisionLabel(props: { revision: Revision; open(): void }) {
   const content = () => <>
@@ -31,49 +41,23 @@ function RevisionLabel(props: { revision: Revision; open(): void }) {
   </Show>
 }
 
-export function StatusBar(props: { readonly revision: number }) {
+function StatusContents(props: { models: ViewModels<StatusModel> }) {
   const ctx = usePlugin<typeof definition>()
-  const [status, { refetch }] = createResource(
-    () => {
-      const session = ctx.sessions.current()
-      return session && {
-        directory: session.directory,
-        server: session.server.id,
-        client: session.server.client,
-        revision: props.revision,
-      }
-    },
-    async ({ directory, server, client }) => {
-      try {
-        const { text, revisions, lines } = (await client.rpc(Status).overview({ directory })) as Overview
-        return { directory, server, text, revisions, lines, summary: summarizeStatus(text), error: false }
-      } catch (error) {
-        return {
-          directory, server,
-          text: errorMessage(error),
-          summary: "jj · status unavailable",
-          revisions: [] as Revision[],
-          lines: { modified: 0, added: 0, deleted: 0 },
-          error: true,
-        }
-      }
-    },
-  )
-
-  const refresh = () => {
-    if (ctx.sessions.current() && !document.hidden && !status.loading) void refetch()
-  }
-  const timer = setInterval(refresh, 10_000)
-  window.addEventListener("focus", refresh)
-  onCleanup(() => {
-    clearInterval(timer)
-    window.removeEventListener("focus", refresh)
-  })
+  const session = ctx.sessions.current()!
+  const repository = sessionRepository(session)
+  const model = props.models.use(repositoryViewKey(repository.server, repository.directory), () => createStatusModel(repository.directory))
+  createEffect(() => model.configure(ctx.sessions.current()!.server.client))
+  observeRepository(repositoryServices(ctx).events, repository, ["jj.working-copy", "jj.history", "jj.bookmarks"], () => model.invalidate({ defer: document.hidden }))
+  createPolling({ loading: () => model.result.loading, enabled: () => true, visible: () => !document.hidden,
+    lastFinished: model.lastFinished, delay: model.nextDelay, stale: model.stale, refresh: model.refresh })
 
   const current = () => {
     const session = ctx.sessions.current()
-    const result = status.latest
-    return result?.directory === session?.directory && result?.server === session?.server.id ? result : undefined
+    if (repository.directory !== session?.directory || repository.server !== session?.server.id) return undefined
+    const result = model.result.latest
+    if (model.result.error) return { directory: repository.directory, text: errorMessage(model.result.error), summary: "jj · status unavailable",
+      revisions: [] as Revision[], lines: { modified: 0, added: 0, deleted: 0 }, error: true }
+    return result && { ...result, directory: repository.directory, summary: summarizeStatus(result.text), error: false }
   }
 
   const openCommit = () => void ctx.commands.run(`${ctx.id}.jj.commit`)

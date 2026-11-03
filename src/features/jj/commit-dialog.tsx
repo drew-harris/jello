@@ -1,7 +1,8 @@
 import { createSignal, For, onMount, Show } from "solid-js"
 import { usePlugin } from "@opencode/plugin/gui"
-import { errorMessage } from "./errors"
+import { errorMessage } from "../../shared/errors"
 import type { ChangedFile } from "./changed-files"
+import { createAsyncAction } from "../../shared/gui/async-action"
 
 export function CommitDialog(props: {
   directory: string
@@ -13,8 +14,9 @@ export function CommitDialog(props: {
   const ctx = usePlugin()
   const ui = ctx.ui
   const [message, setMessage] = createSignal("")
-  const [busy, setBusy] = createSignal(false)
-  const [error, setError] = createSignal<string>()
+  const action = createAsyncAction({ toast: ctx.toast })
+  const busy = action.pending
+  const error = action.error
   const [files, setFiles] = createSignal<ChangedFile[]>([])
   const [loadingFiles, setLoadingFiles] = createSignal(true)
   const [filesError, setFilesError] = createSignal<string>()
@@ -24,18 +26,11 @@ export function CommitDialog(props: {
   })
   const submit = async () => {
     if (busy() || !message().trim()) return
-    setBusy(true)
-    setError(undefined)
-    try {
+    await action.run(async () => {
       await props.commit(message().trim())
       props.onCommitted()
       props.close()
-      ctx.toast.show({ variant: "success", title: "Committed; new working copy created" })
-    } catch (error) {
-      setError(errorMessage(error))
-    } finally {
-      setBusy(false)
-    }
+    }, { success: "Committed; new working copy created" })
   }
 
   return (

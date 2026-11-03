@@ -1,7 +1,7 @@
 import { Plugin } from "@opencode/plugin"
 import { Hello } from "./rpc.ts"
 import { setupJJ } from "./features/jj/server.ts"
-import { setupIntelligence } from "./features/jj/diff/intelligence/server.ts"
+import { setupIntelligence } from "./features/intelligence/server.ts"
 
 // Server part: runs in the OpenCode server. Its id is also the GUI's id (ctx.id).
 export default Plugin.define({

@@ -17,6 +17,8 @@
     "dist"
   ],
   "scripts": {
+    "test": "bun --conditions=browser test",
+    "test:gui": "vite --config tests/gui/vite.config.ts",
     "build": "vite build",
     "dev": "vite build --watch",
     "typecheck": "tsc --noEmit",

@@ -1,6 +1,6 @@
 import { createSignal, onMount, Show } from "solid-js"
 import { usePlugin } from "@opencode/plugin/gui"
-import { errorMessage } from "../errors"
+import { createAsyncAction } from "../../../shared/gui/async-action"
 
 export function DescribeDialog(props: {
   changeID: string
@@ -11,23 +11,17 @@ export function DescribeDialog(props: {
   const ctx = usePlugin()
   const ui = ctx.ui
   const [message, setMessage] = createSignal(props.description.split("\n")[0])
-  const [busy, setBusy] = createSignal(false)
-  const [error, setError] = createSignal("")
+  const action = createAsyncAction({ toast: ctx.toast })
+  const busy = action.pending
+  const error = action.error
   let input!: HTMLInputElement
   onMount(() => { input.focus(); input.select() })
   const submit = async () => {
     if (busy()) return
-    setBusy(true)
-    setError("")
-    try {
+    await action.run(async () => {
       await props.describe(message().trim())
       props.close()
-      ctx.toast.show({ variant: "success", title: "Description updated" })
-    } catch (error) {
-      setError(errorMessage(error))
-    } finally {
-      setBusy(false)
-    }
+    }, { success: "Description updated" })
   }
   return <ui.Dialog title="Describe change" description={`Replace the description of ${props.changeID.slice(0, 8)}.`}
     footer={<div class="jello-jj-actions">
