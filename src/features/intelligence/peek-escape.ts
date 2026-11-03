@@ -14,7 +14,8 @@ export function createPeekEscape(options: {
       if (event.defaultPrevented || event.isComposing || options.inMenu(event)) return
       event.preventDefault()
       event.stopPropagation()
-      if (!event.repeat) unwind()
+      // Key repeat may unwind history, but closing requires a fresh press.
+      if (!options.escape() && !event.repeat) options.close()
     },
     keyup(event: KeyboardEvent) {
       if (event.key === "Escape") key = undefined

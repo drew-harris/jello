@@ -10,6 +10,7 @@ import { localDefinition } from "./jump"
 import { createLanguageRestart } from "../../../intelligence/restart"
 import { createLanguageClient } from "../../../intelligence/client"
 import { createFileChangeProvider } from "./file-changes"
+import { fileStart } from "../file-open"
 
 function restoreDiffFocus(element: HTMLElement | undefined) {
   // CodeView makes its scroll canvas focusable. Returning keyboard focus to
@@ -45,6 +46,7 @@ export function createCodePeek(session: Accessor<MountedSession>, revision: Acce
   const [unavailable, setUnavailable] = createSignal("")
   const [kind, setKind] = createSignal<PeekKind>("definition")
   const [opened, setOpened] = createSignal(false)
+  const [source, setSource] = createSignal<string>()
   const [loading, setLoading] = createSignal(false)
   const [error, setError] = createSignal("")
   const [result, setResult] = createSignal<PeekResult>()
@@ -81,6 +83,7 @@ export function createCodePeek(session: Accessor<MountedSession>, revision: Acce
     cancel()
     clearHighlights()
     setOpened(false)
+    setSource(undefined)
     setTarget(undefined)
     setDefinition(undefined)
     setMenu(undefined)
@@ -109,6 +112,7 @@ export function createCodePeek(session: Accessor<MountedSession>, revision: Acce
     if (!position || unavailable()) return
     if (!opened()) returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : undefined
     cancel()
+    setSource(undefined)
     const request = generation
     const controller = lookupController = new AbortController()
     setKind(value)
@@ -134,10 +138,25 @@ export function createCodePeek(session: Accessor<MountedSession>, revision: Acce
       if (request === generation && !controller.signal.aborted) { setError(errorMessage(error)); setOpened(true) }
     } finally { if (request === generation) setLoading(false) }
   }
+  const openFile = (path: string) => {
+    if (!opened()) returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : undefined
+    cancel()
+    clearHighlights()
+    setMenu(undefined)
+    setTarget(undefined)
+    setDefinition(undefined)
+    setUnavailable("")
+    setError("")
+    setSource(path)
+    // File browsing does not need a selected symbol or a running language server.
+    setResult({ locations: [fileStart(session().directory, path)], truncated: false })
+    setOpened(true)
+  }
   const deselect = () => {
     cancel()
     clearHighlights()
     setOpened(false)
+    setSource(undefined)
     setMenu(undefined)
     setTarget(undefined)
     setDefinition(undefined)
@@ -222,7 +241,7 @@ export function createCodePeek(session: Accessor<MountedSession>, revision: Acce
     event.stopPropagation()
     void open(event.shiftKey ? "references" : "definition")
   }
-  return { client, fileChanges, target, unavailable, kind, opened, loading, error, result, open, close, click, keydown,
+  return { client, fileChanges, source, openFile, target, unavailable, kind, opened, loading, error, result, open, close, click, keydown,
     menu, closeMenu, contextmenu, definition, registerDefinitionJump, restart, restarting,
     occurrences, highlightLoading, highlightError }
 }

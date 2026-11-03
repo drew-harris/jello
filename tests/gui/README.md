@@ -25,6 +25,8 @@ Check:
 4. F12, Shift+F12, modifier-click, and right-click target the **viewed** file.
    The menu also offers type definition, implementations and hover information.
 5. Hover's `<script>` text remains literal text, never a DOM script element.
+   Hold Escape to repeat back through navigation history; repeats at the root must
+   keep the modal open until Escape is released and pressed again.
    With navigation history, Escape goes back one step even when hover or selection
    is present. At the root it dismisses hover before clearing the symbol selection.
 6. Wrap does not reload the document. Refresh reloads it without jumping back
@@ -44,3 +46,10 @@ without closing the modal. This catches behavior that model-only tests cannot.
 The mock gutter provider supplies solid blue on line 1, outlined green on line 2,
 a solid red deletion anchor on line 3, and outlined blue on line 1001. Scroll to
 line 1001 and back to check that virtualized gutter signs survive recycling.
+
+Cmd/Ctrl-click **Cmd-click main.ts** to test the real JJ filename-launch model.
+It should open a modal titled **File: main.ts · working copy**, load the whole
+file without a symbol lookup, hide Refresh query, and retain gutter signs and
+Escape navigation. A plain click must not open it. In the app, check both tree
+rows and section filenames in single-file and stacked diff modes; ordinary tree
+selection and stacked-header path copying should remain unchanged.

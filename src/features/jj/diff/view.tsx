@@ -22,6 +22,7 @@ import { definitionRow, hasDefinitionLine, nextDefinitionFrame } from "./intelli
 import { createDiffContextLoader } from "./context"
 import { Status } from "../rpc"
 import { rendererDiffFiles } from "./files"
+import { openFileClick } from "./file-open"
 import { createPolling } from "../../../shared/gui/poll"
 import { observeRepository, repositoryServices } from "../../../shared/gui/repository"
 
@@ -100,6 +101,7 @@ function TreeEntry(props: {
   filtering: boolean
   depth: number
   select(index: number): void
+  openFile(path: string): void
 }) {
   const [expanded, setExpanded] = createSignal(true)
   const file = () => props.node.index === undefined ? undefined : props.files[props.node.index]
@@ -112,12 +114,13 @@ function TreeEntry(props: {
       </button>
       <Show when={expanded() || props.filtering}>
         <ul><For each={props.node.children}>{(node) => <TreeEntry node={node} files={props.files} selected={props.selected}
-          filtering={props.filtering} depth={props.depth + 1} select={props.select} />}</For></ul>
+          filtering={props.filtering} depth={props.depth + 1} select={props.select} openFile={props.openFile} />}</For></ul>
       </Show>
     </>}>
       {(file) => <button type="button" class="jello-jj-diff-tree-row" classList={{ "is-selected": props.selected === props.node.index }}
         style={{ "padding-left": `${10 + props.depth * 16}px` }} aria-current={props.selected === props.node.index ? "true" : undefined}
-        title={file().prevName ? `${file().prevName} → ${file().name}` : file().name} onClick={() => props.select(props.node.index!)}>
+        title={`${file().prevName ? `${file().prevName} → ${file().name}` : file().name} · Cmd/Ctrl-click to open file`}
+        onClick={(event) => { if (!openFileClick(event, file().name, props.openFile)) props.select(props.node.index!) }}>
         <FileIcon name={file().name} />
         <span class="jello-jj-diff-file-name">{props.node.name}</span>
         <span class="jello-jj-diff-file-kind" data-kind={fileKind(file())}>{fileKind(file())}</span>
@@ -358,7 +361,7 @@ function DiffContents(props: DiffViewProps & { modelKey: string }) {
                   aria-expanded={sidebar()} onClick={() => setSidebar(false)}><DiffIcon name="tree" /></button>
               </div>
               <nav class="jello-jj-diff-files" aria-label="Changed files"><ul>
-                <For each={tree()}>{(node) => <TreeEntry node={node} files={files()} selected={selected()} filtering={!!query()} depth={0} select={selectFile} />}</For>
+                <For each={tree()}>{(node) => <TreeEntry node={node} files={files()} selected={selected()} filtering={!!query()} depth={0} select={selectFile} openFile={peek.openFile} />}</For>
               </ul><Show when={!tree().length}><p class="jello-jj-diff-muted">{files().length ? "No matching files" : "No file changes"}</p></Show></nav>
             </aside>
             <div class="jello-jj-diff-resize-handle" role="separator" tabindex={0}
@@ -413,7 +416,10 @@ function DiffContents(props: DiffViewProps & { modelKey: string }) {
             <Show when={file()} fallback={<div class="jello-jj-diff-empty">{(props.requestedFile ?? parseDiffTabID(props.tabID)?.file) && files().length ? "The requested file was not found in this revision's diff. Use the file tree to choose another file." : "This revision has no file changes."}</div>}>{(file) => <>
               <header class="jello-jj-diff-file-heading" title={file().prevName ? `${file().prevName} → ${file().name}` : file().name}>
                 <span class="jello-jj-diff-file-kind" data-kind={fileKind(file())}>{fileKind(file())}</span><FileIcon name={file().name} />
-                <strong>{file().name.split("/").pop()}</strong><span class="jello-jj-diff-file-directory">{file().name.includes("/") ? file().name.slice(0, file().name.lastIndexOf("/") + 1) : ""}</span>
+                <button type="button" class="jello-jj-diff-file-link" title="Cmd/Ctrl-click to open file in single-file view"
+                  onClick={(event) => openFileClick(event, file().name, peek.openFile)}>
+                  <strong>{file().name.split("/").pop()}</strong><span class="jello-jj-diff-file-directory">{file().name.includes("/") ? file().name.slice(0, file().name.lastIndexOf("/") + 1) : ""}</span>
+                </button>
                 <span class="jello-jj-diff-totals"><span class="jello-jj-diff-added">+{count(file(), "additionLines")}</span><span class="jello-jj-diff-deleted">−{count(file(), "deletionLines")}</span></span>
               </header>
               <div class="jello-jj-diff-content"><Show when={file().hunks.length} fallback={<div class="jello-jj-diff-empty">

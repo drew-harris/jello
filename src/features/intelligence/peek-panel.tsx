@@ -17,6 +17,7 @@ export interface PeekPanelModel {
   error: Accessor<string>
   client: LanguageClient
   fileChanges?: FileChangeProvider
+  source?: Accessor<string | undefined>
   open(kind: PeekKind): void | Promise<void>
   close(): void
   keydown(event: KeyboardEvent): void
@@ -31,7 +32,10 @@ function PeekModal(props: { peek: PeekPanelModel; directory: string; theme?: str
   const ctx = usePlugin()
   const ui = ctx.ui
   const file = createFileViewModel(props.peek.client, props.peek.fileChanges)
-  const title = () => `${props.peek.kind() === "definition" ? "Definition" : "References"}: ${props.peek.target()?.text ?? "Symbol"}`
+  const title = () => {
+    const source = props.peek.source?.()
+    return source ? `File: ${source} · working copy` : `${props.peek.kind() === "definition" ? "Definition" : "References"}: ${props.peek.target()?.text ?? "Symbol"}`
+  }
   createEffect(on(() => props.peek.result(), (result) => {
     if (result) void file.seed({ ...result, label: title() })
     else file.reset()
@@ -89,7 +93,7 @@ function PeekModal(props: { peek: PeekPanelModel; directory: string; theme?: str
       <header>
         <strong id={titleID}>{title()}</strong>
         <span class="jello-peek-spacer" />
-        <button type="button" onClick={() => void props.peek.open(props.peek.kind())} disabled={props.peek.loading()}>{props.peek.error() ? "Retry" : "Refresh query"}</button>
+        <Show when={!props.peek.source?.()}><button type="button" onClick={() => void props.peek.open(props.peek.kind())} disabled={props.peek.loading()}>{props.peek.error() ? "Retry" : "Refresh query"}</button></Show>
         <ui.IconButton icon="close" label="Close peek (Escape)" onClick={props.peek.close} />
       </header>
       <Show when={props.peek.loading()}><p role="status">Looking up {props.peek.kind()}… First lookup may take a moment while TypeScript loads the project.</p></Show>

@@ -9,6 +9,7 @@ import { createDiffComments, type DiffAnnotation } from "./comments"
 import type { CodePeek } from "./intelligence/peek"
 import { createOccurrenceHighlights } from "../../intelligence/highlights"
 import { hasDefinitionLine, nextDefinitionFrame } from "./intelligence/jump"
+import { openFileClick } from "./file-open"
 
 export function MultiFileDiff(props: {
   files: FileDiffMetadata[]
@@ -106,14 +107,18 @@ export function MultiFileDiff(props: {
           const path = title.textContent ?? ""
           title.setAttribute("role", "button")
           title.tabIndex = 0
-          title.title = `Copy file path: ${path}`
-          title.setAttribute("aria-label", `Copy file path: ${path}`)
-          title.onclick = () => { void copyPath(path) }
+          title.title = `Copy file path: ${path} · Cmd/Ctrl-click to open file`
+          title.setAttribute("aria-label", `Copy file path: ${path}; Cmd/Ctrl-click to open file`)
+          title.onclick = (event) => {
+            if (context.item.type === "diff" && openFileClick(event, context.item.fileDiff.name, props.peek.openFile)) return
+            void copyPath(path)
+          }
           title.onkeydown = (event) => {
             if (event.key !== "Enter" && event.key !== " ") return
             event.preventDefault()
             event.stopPropagation()
-            void copyPath(path)
+            if ((event.metaKey || event.ctrlKey) && context.item.type === "diff") props.peek.openFile(context.item.fileDiff.name)
+            else void copyPath(path)
           }
         }
       },

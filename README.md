@@ -166,6 +166,10 @@ Wrap and Refresh source actions are local to this view. **j/k** and **Ctrl+D/U**
 scroll the source viewport, not the enclosing diff. File gutters use solid signs
 for the current JJ change and dim outlines for changes since the main/master
 fork (green added, blue modified, red deleted). Solid signs win overlaps.
+**Cmd/Ctrl-click a filename** in the diff file tree or a diff section header to
+open its working-copy source directly in this viewer, without an LSP lookup.
+This also works in multi-file mode; ordinary header clicks still copy the path.
+Files missing from the working copy show a source-loading error with retry.
 Signs load separately without blocking source navigation; refresh source to
 reload them. Missing or ambiguous main/master baselines show current signs only.
 Content checks suppress signs if the source differs from the pinned JJ snapshot.

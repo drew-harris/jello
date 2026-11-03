@@ -33,7 +33,7 @@ export function FileView(props: { model: FileViewModel; directory: string; theme
     else if ((event.key === "ContextMenu" || event.shiftKey && event.key === "F10") && model.target()) {
       const bounds = panel.getBoundingClientRect()
       setMenu({ x: bounds.left + 16, y: bounds.top + 40 })
-    } else if (event.key === "Escape") handled = event.repeat || model.escape()
+    } else if (event.key === "Escape") handled = model.escape() || event.repeat
     else {
       const viewport = panel.querySelector<HTMLElement>(".jello-file-code")
       const amount = viewport ? codeScrollAmount(event, viewport.clientHeight) : undefined

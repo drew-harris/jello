@@ -51,11 +51,22 @@ test("a source-menu Escape is handled by the menu, not by modal navigation or na
   assert.equal(closed, 0)
 })
 
-test("holding Escape cannot drill through history or trigger native close", () => {
-  let navigated = 0
-  const handler = createPeekEscape({ escape: () => { navigated++; return true }, close: () => { throw new Error("must remain open") }, inMenu: () => false })
+test("holding Escape repeats back through history but needs a fresh press to close at root", () => {
+  let depth = 3
+  let closed = 0
+  const handler = createPeekEscape({ escape: () => depth > 0 ? (depth--, true) : false, close: () => closed++, inMenu: () => false })
   handler.keydown(key())
-  handler.keydown(key(true))
+  assert.equal(depth, 2)
+  for (let index = 0; index < 5; index++) {
+    const event = key(true)
+    handler.keydown(event)
+    handler.cancel(new Event("cancel", { cancelable: true }))
+    assert.equal(event.defaultPrevented, true)
+    assert.equal(depth, Math.max(0, 1 - index), "each repeat goes back only once")
+    assert.equal(closed, 0)
+  }
+  handler.keyup(key())
+  handler.keydown(key())
   handler.cancel(new Event("cancel", { cancelable: true }))
-  assert.equal(navigated, 1)
+  assert.equal(closed, 1)
 })

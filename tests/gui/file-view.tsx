@@ -6,6 +6,9 @@ import { createFileViewModel } from "../../src/features/intelligence/file-model"
 import type { LanguageClient } from "../../src/features/intelligence/client"
 import type { PeekLocation } from "../../src/features/intelligence/rpc"
 import type { FileChangeProvider } from "../../src/features/intelligence/file-changes"
+import type { MountedSession } from "@opencode/plugin/gui"
+import { createCodePeek } from "../../src/features/jj/diff/intelligence/peek"
+import { openFileClick } from "../../src/features/jj/diff/file-open"
 import "../../src/features/intelligence/style.css"
 
 const at = (path: string, line = 0): PeekLocation => ({ path, line, character: line === 0 ? 13 : 12, endLine: line, endCharacter: line === 0 ? 18 : 17 })
@@ -59,14 +62,22 @@ async function modalEscapeRegression() {
 
 function Harness() {
   const model = createFileViewModel(client, fileChanges)
+  // Exercise the actual JJ launch model without repository or LSP requests.
+  const session = { directory: "/repo", server: { id: "mock", client: { rpc: () => ({
+    document: ({ path }: { path: string }, { signal }: { signal: AbortSignal }) => client.document(path, signal),
+    events: { on: () => () => {} },
+  }) } } } as unknown as MountedSession
+  const filePeek = createCodePeek(() => session, () => "mock-revision", () => true)
   const [peekOpened, setPeekOpened] = createSignal(false)
   const initial = { locations: [at("/repo/main.ts"), at("/repo/main.ts", 1)], truncated: false }
   onMount(() => { void model.seed({ label: "References: value", locations: [at("/repo/main.ts"), at("/repo/main.ts", 1)], truncated: false }) })
-  Object.assign(window, { fileViewTest: { model, calls, modalEscapeRegression } })
+  Object.assign(window, { fileViewTest: { model, calls, modalEscapeRegression, filePeek } })
   return <main>
     <h1>Read-only file view smoke test</h1>
     <p>Mock LSP, real virtualized renderer. No repository changes or server queries.</p>
     <button type="button" data-testid="open-peek" onClick={() => setPeekOpened(true)}>Open peek modal</button>
+    <button type="button" data-testid="open-file" onClick={(event) => openFileClick(event, "main.ts", filePeek.openFile)}>Cmd-click main.ts</button>
+    <CodePeekPanel directory="/repo" peek={{ ...filePeek, fileChanges }} />
     <CodePeekPanel directory="/repo" peek={{ opened: peekOpened, kind: () => "references", target: () => ({ text: "value" }),
       result: () => initial, loading: () => false, error: () => "", client, fileChanges,
       open: async () => {}, close: () => setPeekOpened(false), keydown: (event) => {

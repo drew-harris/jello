@@ -163,3 +163,16 @@
 }
 .jello-jj-diff .jello-diff-comment-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; align-items: center; }
 .jello-jj-diff .jello-diff-comment-actions span { flex: 1; color: var(--jj-diff-muted); font-size: 12px; }
+.jello-jj-diff-file-link {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.jello-jj-diff-file-link:hover { text-decoration: underline; }
+.jello-jj-diff-file-link:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
