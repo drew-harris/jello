@@ -119,6 +119,13 @@ rather than text hunks.
 
 ### Definition and reference peeks
 
+If the language service gets stuck, run **Restart TypeScript language server**
+from the command palette, the symbol right-click menu, or an LSP error message.
+It replaces the language-server process for the current workspace and clears its
+open-document state, pending lookups, peek previews, and occurrence highlights.
+Other workspaces are unaffected. Progress and failures appear as toasts; after a
+successful restart, the next lookup reloads the TypeScript project.
+
 Plain-click a TypeScript/JavaScript variable to highlight its occurrences in the
 same file using thin rounded outlines and a subtle background tint, keeping
 syntax colors intact. Highlights use LSP symbol identity, not word matching, so

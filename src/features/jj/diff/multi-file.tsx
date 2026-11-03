@@ -1,4 +1,4 @@
-import { CodeView, type FileDiffMetadata } from "@pierre/diffs"
+import { CodeView, type FileDiffContentsLoader, type FileDiffMetadata } from "@pierre/diffs"
 import { createEffect, createSignal, on, onCleanup, onMount } from "solid-js"
 import { usePlugin, type SessionScreen } from "@opencode/plugin/gui"
 import { diffThemeCSS } from "./theme"
@@ -19,6 +19,7 @@ export function MultiFileDiff(props: {
   select(index: number): void
   screen: SessionScreen
   peek: CodePeek
+  loadDiffFiles: FileDiffContentsLoader
 }) {
   const ctx = usePlugin<typeof definition>()
   let container!: HTMLDivElement
@@ -60,6 +61,7 @@ export function MultiFileDiff(props: {
     viewer.setOptions({
       diffStyle: props.layout,
       expandUnchanged: expanded(),
+      loadDiffFiles: props.loadDiffFiles,
       theme: { light: "jello-jj-light", dark: "jello-jj-dark" },
       themeType: ctx.appearance.mode(),
       overflow: props.wrap ? "wrap" : "scroll",

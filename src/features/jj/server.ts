@@ -2,7 +2,7 @@ import type { Plugin } from "@opencode/plugin"
 import { Status } from "./rpc.ts"
 import { readOverview, readStatus } from "./status.ts"
 import { commit } from "./commit.ts"
-import { readRevisionDiff } from "./diff/server.ts"
+import { readDiffContext, readRevisionDiff } from "./diff/server.ts"
 import { readChangedFiles } from "./changed-files.ts"
 import { readTree } from "./tree/server.ts"
 import { abandon } from "./tree/abandon.ts"
@@ -15,6 +15,10 @@ import { pushChange } from "./tree/push.ts"
 
 export async function setupJJ(ctx: Plugin.Context) {
   await ctx.rpc.register(Status, {
+    diffContext: async (input, context) => {
+      const { directory, commitID, path } = input as { directory: string; commitID: string; path: string }
+      return readDiffContext(directory, commitID, path, context.signal)
+    },
     gitPush: async (input, context) => {
       const { directory, commitID } = input as { directory: string; commitID: string }
       await pushChange(directory, commitID, context.signal)

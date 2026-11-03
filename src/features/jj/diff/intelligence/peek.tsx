@@ -19,6 +19,8 @@ function restoreDiffFocus(element: HTMLElement | undefined) {
 }
 
 export function createCodePeek(session: Accessor<MountedSession>, revision: Accessor<string>, current: Accessor<boolean>) {
+  const ctx = usePlugin()
+  const [restarting, setRestarting] = createSignal(false)
   const [target, setTarget] = createSignal<SymbolPosition>()
   const [definition, setDefinition] = createSignal<PeekLocation>()
   const jumps = new Set<(location: PeekLocation, signal: AbortSignal) => boolean | Promise<boolean>>()
@@ -168,6 +170,37 @@ export function createCodePeek(session: Accessor<MountedSession>, revision: Acce
     setDefinition(undefined)
     setUnavailable("")
     targetSide = undefined
+    setResult(undefined)
+    setSource(undefined)
+    setError("")
+    setSourceError("")
+    setSelected(0)
+  }
+  // A palette action or another panel/window may restart this workspace's LSP.
+  // Invalidate generations as well as visuals so old responses cannot reappear.
+  createEffect(() => {
+    const client = session().server.client
+    const directory = session().directory
+    const unsubscribe = client.rpc(Intelligence).events.on("restarted", (event) => {
+      const data = event.data as { directory: string; root: string }
+      if (data.directory === directory || data.root === directory) deselect()
+    })
+    onCleanup(unsubscribe)
+  })
+  const restart = async () => {
+    if (restarting()) return
+    const client = session().server.client
+    const directory = session().directory
+    closeMenu(true)
+    deselect()
+    setRestarting(true)
+    const progress = ctx.toast.show({ variant: "loading", title: "Restarting TypeScript language server…", persistent: true })
+    try {
+      await client.rpc(Intelligence).restart({ directory })
+      ctx.toast.show({ variant: "success", title: "TypeScript language server restarted", description: "LSP state cleared. The next lookup will reload the project." })
+    } catch (error) {
+      ctx.toast.show({ variant: "error", title: "Could not restart TypeScript language server", description: errorMessage(error) })
+    } finally { progress.dismiss(); setRestarting(false) }
   }
   const choose = (position: SymbolPosition, token: DiffTokenEventBaseProps) => {
     cancel()
@@ -229,7 +262,7 @@ export function createCodePeek(session: Accessor<MountedSession>, revision: Acce
     void open(event.shiftKey ? "references" : "definition")
   }
   return { target, unavailable, kind, opened, loading, error, result, selected, source, sourceLoading, sourceError, location, select, open, close, click, keydown,
-    menu, closeMenu, contextmenu, definition, registerDefinitionJump,
+    menu, closeMenu, contextmenu, definition, registerDefinitionJump, restart, restarting,
     occurrences, highlightLoading, highlightError }
 }
 
@@ -248,6 +281,7 @@ export function PeekContextMenu(props: { peek: CodePeek }) {
   return <>
     <Show keyed when={props.peek.menu()}>{(menu) => <SymbolContextMenu x={menu.x} y={menu.y}
       symbol={props.peek.target()?.text ?? "Symbol"} disabledReason={props.peek.unavailable()}
+      restart={() => void props.peek.restart()} restarting={props.peek.restarting()}
       close={props.peek.closeMenu} open={(kind) => void props.peek.open(kind)} />}</Show>
     <Show when={props.peek.highlightError()} fallback={
       <Show when={props.peek.highlightLoading() || (props.peek.loading() && !props.peek.opened())}>
@@ -259,6 +293,7 @@ export function PeekContextMenu(props: { peek: CodePeek }) {
       <strong>Could not highlight occurrences</strong>
       <pre>{error()}</pre>
       <button type="button" onClick={() => void copyError()}>Copy error</button>
+      <button type="button" disabled={props.peek.restarting()} onClick={() => void props.peek.restart()}>Restart TypeScript language server</button>
     </div>}</Show>
   </>
 }

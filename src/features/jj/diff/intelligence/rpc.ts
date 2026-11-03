@@ -22,6 +22,14 @@ export interface PeekSource { startLine: number; lines: string[] }
 export const Intelligence = Rpc.define({
   id: "jello.jj.intelligence",
   methods: {
+    restart: {
+      input: {
+        type: "object", properties: { directory: { type: "string" } }, required: ["directory"], additionalProperties: false,
+      },
+      output: {
+        type: "object", properties: { restarted: { type: "boolean" } }, required: ["restarted"], additionalProperties: false,
+      },
+    },
     lookup: {
       input: {
         type: "object", properties: {
@@ -51,5 +59,12 @@ export const Intelligence = Rpc.define({
         required: ["startLine", "lines"], additionalProperties: false,
       },
     },
-  }, events: {},
+  }, events: {
+    restarted: {
+      schema: {
+        type: "object", properties: { directory: { type: "string" }, root: { type: "string" } },
+        required: ["directory", "root"], additionalProperties: false,
+      },
+    },
+  },
 })

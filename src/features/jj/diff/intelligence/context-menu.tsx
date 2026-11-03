@@ -10,6 +10,8 @@ export function SymbolContextMenu(props: {
   disabledReason: string
   close(restoreFocus?: boolean): void
   open(kind: PeekKind): void
+  restart(): void
+  restarting: boolean
 }) {
   const ctx = usePlugin()
   const ui = ctx.ui
@@ -71,5 +73,9 @@ export function SymbolContextMenu(props: {
       <span aria-hidden="true"><ui.Icon name="bullet-list" size="small" /></span><span>Peek references</span><kbd>⇧F12</kbd>
     </button>
     <Show when={props.disabledReason}><p>{props.disabledReason}</p></Show>
+    <hr />
+    <button type="button" role="menuitem" disabled={props.restarting} onClick={props.restart}>
+      <span aria-hidden="true"><ui.Icon name="arrow-undo-down" size="small" /></span><span>Restart TypeScript language server</span>
+    </button>
   </div></Portal>
 }

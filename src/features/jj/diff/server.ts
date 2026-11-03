@@ -4,6 +4,21 @@ import { parseRevisions, revisionTemplate, type Revision } from "../overview.ts"
 
 const execute = promisify(execFile)
 
+// Load only the requested file, pinned to the same immutable revision as the
+// initial patch. A full-context diff also handles merged parents correctly.
+export async function readDiffContext(directory: string, commitID: string, path: string, signal?: AbortSignal): Promise<{ patch: string }> {
+  if (!/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(commitID)) throw new Error("Invalid commit ID")
+  if (!path || path.includes("\0") || path.startsWith("/") || path.split("/").some((part) => part === "..")) throw new Error("Invalid file path")
+  try {
+    const result = await execute("jj", ["diff", "--ignore-working-copy", "--git", "--context=2147483647", "--color=never", "--no-pager",
+      "-r", commitID, "--", `file:${JSON.stringify(path)}`], { cwd: directory, signal, timeout: 30_000, maxBuffer: 16 * 1024 * 1024 })
+    return { patch: result.stdout }
+  } catch (error) {
+    const failure = error as Error & { stderr?: string }
+    throw new Error(failure.stderr?.trim() || failure.message)
+  }
+}
+
 export interface RevisionDiff {
   patch: string
   revision: Revision

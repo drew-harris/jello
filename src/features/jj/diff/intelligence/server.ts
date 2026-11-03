@@ -178,7 +178,7 @@ export function createLanguageService(root: string) {
     queue = work.then(() => {}, () => {})
     return work
   }
-  return { lookup, stop, get stopped() { return stopped }, get touched() { return touched },
+  return { lookup, stop, ready, get stopped() { return stopped }, get touched() { return touched },
     async source(path: string, line: number) {
       touched = Date.now()
       if (!allowed.has(path)) throw new Error("Peek target expired. Run the lookup again.")
@@ -191,6 +191,7 @@ export function createLanguageService(root: string) {
 
 export async function setupIntelligence(ctx: Plugin.Context) {
   const services = new Map<string, ReturnType<typeof createLanguageService>>()
+  const restarts = new Map<string, Promise<void>>()
   const service = async (directory: string) => {
     const root = await realpath(directory)
     let value = services.get(root)
@@ -206,6 +207,27 @@ export async function setupIntelligence(ctx: Plugin.Context) {
     return value
   }
   const registration = await ctx.rpc.register(Intelligence, {
+    restart: async (input) => {
+      const { directory } = input as { directory: string }
+      const root = await realpath(directory)
+      let pending = restarts.get(root)
+      if (!pending) {
+        pending = (async () => {
+          // Drop the entire instance, including open documents, queues and
+          // authorized source targets. Never wait on a wedged lookup queue.
+          services.get(root)?.stop()
+          services.delete(root)
+          const replacement = await service(root)
+          await registration.events.emit("restarted", { directory, root })
+          await replacement.ready
+        })()
+        restarts.set(root, pending)
+      }
+      try {
+        await pending
+        return { restarted: true }
+      } finally { if (restarts.get(root) === pending) restarts.delete(root) }
+    },
     lookup: async (input, context) => {
       const value = input as { directory: string; path: string; line: number; character: number; expectedLine: string; kind: LookupKind }
       return (await service(value.directory)).lookup(value, context.signal)

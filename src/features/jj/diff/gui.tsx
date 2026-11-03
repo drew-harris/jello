@@ -1,4 +1,4 @@
-import { Panel, Style, type PanelTab, type Plugin } from "@opencode/plugin/gui"
+import { Command, Panel, Style, type PanelTab, type Plugin } from "@opencode/plugin/gui"
 import type { definition } from "../../../gui/definition"
 import { diffTabTitle, parseDiffTabID, reusableDiffTab, type DiffTabRevision } from "./tab"
 import { DiffNavigation, diffSessionKey } from "./navigation"
@@ -8,10 +8,32 @@ import { ViewModels } from "../view-models"
 import css from "./style.css?inline"
 import { registerDiffThemes } from "./theme"
 import { createSignal } from "solid-js"
+import { Intelligence } from "./intelligence/rpc"
+import { errorMessage } from "../errors"
 
 export const setupDiff: Plugin.Setup<typeof definition> = (ctx) => {
   registerDiffThemes()
   ctx.add(Style, css)
+  const [restartingLSP, setRestartingLSP] = createSignal(false)
+  ctx.add(Command, () => ({
+    id: "jj-lsp-restart",
+    title: "Restart TypeScript language server",
+    group: "JJ Diff",
+    keywords: "lsp reset clear cache intellisense references definition",
+    enabled: !!ctx.sessions.current() && !restartingLSP(),
+    run: async () => {
+      const session = ctx.sessions.current()
+      if (!session || restartingLSP()) return
+      setRestartingLSP(true)
+      const progress = ctx.toast.show({ variant: "loading", title: "Restarting TypeScript language server…", persistent: true })
+      try {
+        await session.server.client.rpc(Intelligence).restart({ directory: session.directory })
+        ctx.toast.show({ variant: "success", title: "TypeScript language server restarted", description: "LSP state cleared. The next lookup will reload the project." })
+      } catch (error) {
+        ctx.toast.show({ variant: "error", title: "Could not restart TypeScript language server", description: errorMessage(error) })
+      } finally { progress.dismiss(); setRestartingLSP(false) }
+    },
+  }))
   const tabs = new Map<string, PanelTab>()
   const models = new ViewModels<DiffModel>()
   const scoped = (session: string, id: string) => `${session}\0${id}`

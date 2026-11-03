@@ -43,6 +43,8 @@
 .jello-jj-symbol-menu button > span[aria-hidden] { display: flex; }
 .jello-jj-symbol-menu kbd { margin-left: auto; font: inherit; opacity: .55; }
 .jello-jj-symbol-menu p { margin: 5px 8px; font-size: 11px; opacity: .7; }
+.jello-jj-symbol-menu hr { border: 0; border-top: 1px solid #8883; margin: 5px 3px; }
+.jello-jj-symbol-status.is-error button + button { margin-left: 6px; }
 .jello-jj-peek { height: 300px; max-height: 50%; min-height: 140px; flex-shrink: 0; display: flex; flex-direction: column; border-top: 2px solid var(--jj-diff-mod); background: var(--jj-diff-bg); }
 .jello-jj-peek > header { display: flex; align-items: center; gap: 10px; padding: 6px 12px; border-bottom: 1px solid var(--jj-diff-border); }
 .jello-jj-peek > header strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

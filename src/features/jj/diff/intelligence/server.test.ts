@@ -3,8 +3,9 @@ import { test } from "node:test"
 import { mkdir, mkdtemp, rm, writeFile, realpath } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { createLanguageService, normalizeLocations, readSource } from "./server"
+import { createLanguageService, normalizeLocations, readSource, setupIntelligence } from "./server"
 import { Intelligence } from "./rpc"
+import type { Plugin } from "@opencode/plugin"
 
 test("normalizes locations and links, deduplicating targets and excluding non-file URIs", () => {
   const range = { start: { line: 2, character: 3 }, end: { line: 2, character: 9 } }
@@ -24,6 +25,43 @@ test("intelligence RPC schemas do not include host-unsupported regex validation"
     }
   }
   visit(Intelligence.methods)
+})
+
+test("restart replaces the workspace language server, clears source authorization, and leaves other workspaces alone", { timeout: 60_000 }, async () => {
+  await mkdir(join(tmpdir(), "opencode"), { recursive: true })
+  const fixture = await realpath(await mkdtemp(join(tmpdir(), "opencode", "jello-lsp-restart-")))
+  const directories = [join(fixture, "first"), join(fixture, "second")]
+  for (const directory of directories) {
+    await mkdir(directory)
+    await writeFile(join(directory, "main.ts"), "const value = 1\nconsole.log(value)\n")
+  }
+  type Handler = (input: unknown, context: { signal: AbortSignal }) => Promise<unknown>
+  let handlers!: Record<string, Handler>
+  const events: Array<{ name: string; data: unknown }> = []
+  const ctx = { rpc: { register: async (_definition: unknown, implementation: Record<string, Handler>) => {
+    handlers = implementation
+    return { events: { emit: async (name: string, data: unknown) => { events.push({ name, data }) } }, dispose: async () => {} }
+  } } } as unknown as Plugin.Context
+  const cleanup = await setupIntelligence(ctx)
+  const context = { signal: new AbortController().signal }
+  const lookup = (directory: string) => handlers.lookup({ directory, path: "main.ts", line: 1, character: 12,
+    expectedLine: "console.log(value)", kind: "definition" }, context)
+  const source = (directory: string) => handlers.source({ directory, path: join(directory, "main.ts"), line: 0 }, context)
+  try {
+    await Promise.all(directories.map(lookup))
+    await Promise.all(directories.map(source))
+    const input = { directory: directories[0] }
+    const results = await Promise.all([handlers.restart(input, context), handlers.restart(input, context)])
+    assert.deepEqual(results, [{ restarted: true }, { restarted: true }])
+    assert.deepEqual(events, [{ name: "restarted", data: { directory: directories[0], root: directories[0] } }])
+    await assert.rejects(source(directories[0]), /expired/, "Restart must discard the previous authorized peek targets")
+    await source(directories[1])
+    await lookup(directories[0])
+    await source(directories[0])
+  } finally {
+    cleanup()
+    await rm(fixture, { recursive: true, force: true })
+  }
 })
 
 test("real LSP peeks resolve definitions, references and changed files without permitting arbitrary source reads", { timeout: 60_000 }, async () => {
