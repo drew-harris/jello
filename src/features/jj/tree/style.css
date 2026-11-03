@@ -94,7 +94,8 @@
 .jello-jj-tree-meta { display: flex; align-items: center; gap: 7px; min-width: 0; width: 100%; white-space: nowrap; overflow: hidden; }
 .jello-jj-tree-id { font-family: var(--tree-mono), monospace; font-size: 11px; font-weight: 400; color: var(--tree-muted); flex-shrink: 0; }
 .jello-jj-tree-id strong { color: var(--tree-accent); font-weight: 600; }
-.jello-jj-tree-bookmark { display: inline-flex; align-items: center; gap: 4px; min-width: 0; max-width: 160px; padding: 1px 6px; border: 1px solid color-mix(in srgb, var(--text-interactive-base, #6686ad) 30%, transparent); border-radius: 4px; background: color-mix(in srgb, var(--text-interactive-base, #6686ad) 15%, transparent); color: var(--text-interactive-base, #6686ad); font-size: 11px; font-weight: 600; line-height: 14px; }
+.jello-jj-tree-bookmark { --bookmark-color: var(--text-interactive-base, #6686ad); display: inline-flex; align-items: center; gap: 4px; min-width: 0; max-width: 160px; padding: 1px 6px; border: 1px solid color-mix(in srgb, var(--bookmark-color) 30%, transparent); border-radius: 4px; background: color-mix(in srgb, var(--bookmark-color) 15%, transparent); color: var(--bookmark-color); font-size: 11px; font-weight: 600; line-height: 14px; }
+.jello-jj-tree-bookmark.is-remote { --bookmark-color: var(--text-success-base, #39946a); }
 .jello-jj-tree-bookmark > span[aria-hidden] { display: flex; flex-shrink: 0; }
 .jello-jj-tree-bookmark-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .jello-jj-tree-warning { color: var(--tree-warning); font-size: 10px; }

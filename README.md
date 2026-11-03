@@ -13,6 +13,12 @@ native commit list with colored SVG ancestry lanes, working-copy rings, immutabl
 diamonds, bookmarks, and conflict/divergence badges. Requires `jj` on the OpenCode
 server's PATH.
 
+Local bookmark badges are blue; remote bookmark badges are green.
+Bookmark badges preserve JJ's notation: `main*` differs from a tracked remote,
+and `main@origin` shows the remote's position when it differs from the local
+bookmark. Synced tracked bookmarks appear once, without a suffix. These reflect
+the last fetched remote state; refreshing the tree does not fetch from Git.
+
 The view respects the repository's default `jj log` revset. Dashed, capped edges
 indicate parents outside the displayed history; they do not infer connections
 through hidden revisions. Load more adds 100 revisions at a time (up to 2,000).

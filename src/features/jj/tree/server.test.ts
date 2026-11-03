@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert"
 import { execFile, spawnSync } from "node:child_process"
-import { mkdtemp, rm } from "node:fs/promises"
+import { mkdir, mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { test } from "node:test"
@@ -33,6 +33,7 @@ test("real JJ template returns metadata and respects the configured default log 
     assert.equal(history.commits[0].parents[0], history.commits[1].commitID)
     assert.equal(history.commits[1].description.trim(), description)
     assert.deepEqual(history.commits[1].bookmarks, ["feature/tree"])
+    assert.deepEqual(history.commits[1].bookmarkLabels, ["feature/tree"])
     assert.deepEqual(history.commits[2].parents, [])
     const limited = await readTree(directory, 1)
     assert.equal(limited.hasMore, true)
@@ -44,6 +45,46 @@ test("real JJ template returns metadata and respects the configured default log 
     assert.equal(filtered.commits[0].parents.length, 1)
   } finally {
     await rm(directory, { recursive: true, force: true })
+  }
+})
+
+test("tree distinguishes moved local bookmarks from remote positions and collapses synced refs", { skip: !available }, async () => {
+  const base = await mkdtemp(join(tmpdir(), "jello-tree-remotes-"))
+  const directory = join(base, "repo")
+  const remote = join(base, "remote.git")
+  const jj = async (args: string[]) => (await execute("jj", [
+    "--config", 'user.name="Tree Test"', "--config", 'user.email="tree@example.com"', ...args,
+  ], { cwd: directory })).stdout.trim()
+  try {
+    await mkdir(directory)
+    await execute("git", ["init", "--bare", remote])
+    await jj(["git", "init"])
+    await jj(["config", "set", "--repo", "revsets.log", "::"])
+    await jj(["git", "remote", "add", "origin", remote])
+    await jj(["describe", "-m", "Published"])
+    await jj(["bookmark", "create", "main"])
+    await jj(["git", "push", "--remote", "origin", "--bookmark", "main", "--allow-new"])
+    const published = await jj(["log", "--no-graph", "-r", "main", "-T", "commit_id"])
+    const synced = await readTree(directory, 20)
+    assert.deepEqual(synced.commits.find((c) => c.commitID === published)?.bookmarkLabels, ["main"])
+
+    await jj(["new", "main", "-m", "Local advance"])
+    await jj(["bookmark", "set", "main", "-r", "@"])
+    const moved = await readTree(directory, 20)
+    assert.deepEqual(moved.commits[0].bookmarks, ["main"])
+    assert.deepEqual(moved.commits[0].bookmarkLabels, ["main*"])
+    assert.deepEqual(moved.commits[0].remoteBookmarkLabels, [])
+    const remoteCommit = moved.commits.find((c) => c.commitID === published)!
+    assert.deepEqual(remoteCommit.bookmarks, [])
+    assert.deepEqual(remoteCommit.bookmarkLabels, ["main@origin"])
+    assert.deepEqual(remoteCommit.remoteBookmarkLabels, ["main@origin"])
+
+    await jj(["git", "push", "--remote", "origin", "--bookmark", "main"])
+    const pushed = await readTree(directory, 20)
+    assert.deepEqual(pushed.commits.find((c) => c.bookmarks.includes("main"))?.bookmarkLabels, ["main"])
+    assert.deepEqual(pushed.commits.find((c) => c.commitID === published)?.bookmarkLabels, [])
+  } finally {
+    await rm(base, { recursive: true, force: true })
   }
 })
 

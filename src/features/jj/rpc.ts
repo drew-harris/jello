@@ -185,6 +185,8 @@ export const Status = Rpc.define({
                 parents: { type: "array", items: { type: "string" } },
                 description: { type: "string" }, author: { type: "string" }, timestamp: { type: "string" },
                 bookmarks: { type: "array", items: { type: "string" } },
+                bookmarkLabels: { type: "array", items: { type: "string" } },
+                remoteBookmarkLabels: { type: "array", items: { type: "string" } },
                 current: { type: "boolean" }, immutable: { type: "boolean" }, empty: { type: "boolean" },
                 conflict: { type: "boolean" }, divergent: { type: "boolean" },
               },

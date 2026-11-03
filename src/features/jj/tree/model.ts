@@ -7,6 +7,8 @@ export interface TreeCommit {
   author: string
   timestamp: string
   bookmarks: string[]
+  bookmarkLabels?: string[]
+  remoteBookmarkLabels?: string[]
   current: boolean
   immutable: boolean
   empty: boolean
@@ -28,7 +30,9 @@ export const treeTemplate = [
   "',\"description\":' ++ json(description)",
   "',\"author\":' ++ json(author.name())",
   "',\"timestamp\":' ++ json(committer.timestamp().format(\"%Y-%m-%dT%H:%M:%S%:z\"))",
-  "',\"bookmarks\":' ++ json(bookmarks.map(|b| b.name()))",
+  "',\"bookmarks\":' ++ json(local_bookmarks.map(|b| b.name()))",
+  "',\"bookmarkLabels\":' ++ json(bookmarks.map(|b| stringify(b)))",
+  "',\"remoteBookmarkLabels\":' ++ json(bookmarks.filter(|b| b.remote()).map(|b| stringify(b)))",
   "',\"current\":' ++ json(current_working_copy)",
   "',\"immutable\":' ++ json(immutable)",
   "',\"empty\":' ++ json(empty)",

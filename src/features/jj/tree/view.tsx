@@ -447,7 +447,9 @@ export function TreeView(props: { session: MountedSession; models: ViewModels<Hi
                   }}>
                   <span class="jello-jj-tree-meta">
                     <ChangeID commit={row.commit} />
-                    <For each={row.commit.bookmarks}>{(bookmark) => <span class="jello-jj-tree-bookmark" title={`Bookmark: ${bookmark}`}>
+                    <For each={row.commit.bookmarkLabels ?? row.commit.bookmarks}>{(bookmark) => <span class="jello-jj-tree-bookmark"
+                      classList={{ "is-remote": row.commit.remoteBookmarkLabels?.includes(bookmark) }}
+                      title={`Bookmark: ${bookmark}\nJJ notation: * differs from a tracked remote; @remote marks a remote bookmark; ?? marks a conflict.`}>
                       <span aria-hidden="true"><ui.Icon name="branch" size="small" /></span>
                       <span class="jello-jj-tree-bookmark-name">{bookmark}</span>
                     </span>}</For>
