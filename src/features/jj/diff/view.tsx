@@ -21,6 +21,7 @@ import { createOccurrenceHighlights } from "./intelligence/highlights"
 import { definitionRow, hasDefinitionLine, nextDefinitionFrame } from "./intelligence/jump"
 import { createDiffContextLoader } from "./context"
 import { Status } from "../rpc"
+import { rendererDiffFiles } from "./files"
 
 const fileKind = (file: FileDiffMetadata) => ({ new: "A", deleted: "D", "rename-pure": "R", "rename-changed": "R", change: "M" })[file.type]
 const count = (file: FileDiffMetadata, kind: "additionLines" | "deletionLines") => file.hunks.reduce((total, hunk) => total + hunk[kind], 0)
@@ -81,7 +82,9 @@ function DiffFile(props: { file: FileDiffMetadata; layout: "unified" | "split"; 
       },
       unsafeCSS: `${diffThemeCSS(dark)}\n${occurrences.css}`,
     })
-    viewer.render({ fileDiff: props.file, containerWrapper: container, lineAnnotations: comments.annotations(props.file) })
+    // FileDiff skips unchanged file inputs even after setOptions; option-only
+    // updates (layout, wrapping, expanded context, etc.) must force a render.
+    viewer.render({ fileDiff: props.file, containerWrapper: container, lineAnnotations: comments.annotations(props.file), forceRender: true })
   })
   onCleanup(() => { viewer.cleanUp(); container.replaceChildren() })
   return <div class="jello-jj-diff-renderer" style={{ "--diffs-font-family": ctx.appearance.font("mono"),
@@ -274,7 +277,7 @@ function DiffContents(props: DiffViewProps & { modelKey: string }) {
     setQuery("")
   }))
   const active = () => result()?.id === props.tabID ? result() : undefined
-  const files = createMemo(() => active()?.files ?? [])
+  const files = createMemo(() => rendererDiffFiles(active()?.files ?? []))
   const refresh = (force = false) => {
     if (loading()) return
     if (document.hidden || !workspace?.isConnected || !workspace.getClientRects().length) { schedule(); return }
