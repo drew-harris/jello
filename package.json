@@ -1,6 +1,6 @@
 {
   "name": "opencode-jello",
-  "version": "0.1.5",
+  "version": "0.1.7",
   "description": "Jello: an OpenCode Desktop GUI plugin.",
   "type": "module",
   "keywords": [
@@ -25,8 +25,8 @@
     "prepublishOnly": "vite build"
   },
   "dependencies": {
-    "@opencode/plugin": "^2.2.1",
-    "@pierre/diffs": "^1.6.2",
+    "@opencode/plugin": "^2.2.6",
+    "@pierre/diffs": "1.6.2",
     "typescript": "^5.9.0",
     "typescript-language-server": "^6.0.2",
     "vscode-jsonrpc": "^10.0.0"

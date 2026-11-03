@@ -1,4 +1,5 @@
-import { Command, SettingsPage, Style, type Plugin } from "@opencode/plugin/gui"
+import { Command, SettingsPage, Style, Theme, type Plugin } from "@opencode/plugin/gui"
+import { sonokai } from "./themes/sonokai"
 import { setupJJ } from "../features/jj/gui"
 import type { definition } from "./definition"
 import { SettingsView } from "./settings"
@@ -8,6 +9,7 @@ import { setupIntelligence } from "../features/intelligence/gui"
 
 // Shared Jello window setup. Each feature registers its own contributions.
 export const setup: Plugin.Setup<typeof definition> = (ctx) => {
+  ctx.add(Theme, sonokai)
   ctx.provide(RepositoryServices, createRepositoryServices())
   setupIntelligence(ctx)
   ctx.add(Style, css)

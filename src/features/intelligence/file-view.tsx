@@ -53,15 +53,13 @@ export function FileView(props: { model: FileViewModel; directory: string; theme
       <ui.IconButton icon="arrow-left" label="Back (Escape / Alt+Left)" disabled={!model.canBack()} onClick={() => void model.back()} />
       <ui.IconButton icon="arrow-right" label="Forward (Alt+Right)" disabled={!model.canForward()} onClick={() => void model.forward()} />
       <span class="jello-file-path" title={model.location()?.path}>{path(model.location()?.path ?? "")}</span>
-      <span class="jello-file-meta">Entire file · read-only</span>
       <button type="button" aria-pressed={wrap()} onClick={() => setWrap(!wrap())}>Wrap</button>
       <ui.IconButton icon="refresh" label="Refresh source file" disabled={model.loading()} onClick={() => void model.refresh()} />
     </div>
-    <Show when={model.hasChanges}><div class="jello-file-change-legend" role="status">
-      <span title="Green: added · blue: modified · red: deleted">▰ Current JJ change · ▱ Since main/master fork</span>
-      <Show when={model.changesLoading()}> · Loading gutter signs…</Show>
-      <Show when={model.changes()?.note}>{(note) => <span> · {note()}</span>}</Show>
-      <Show when={model.changesError()}>{(error) => <span> · Gutter signs unavailable: {error()}</span>}</Show>
+    <Show when={model.hasChanges && (model.changesLoading() || model.changes()?.note || model.changesError())}><div class="jello-file-change-legend" role="status">
+      <Show when={model.changesLoading()}>Loading gutter signs…</Show>
+      <Show when={model.changes()?.note}>{(note) => <span>{note()}</span>}</Show>
+      <Show when={model.changesError()}>{(error) => <span>Gutter signs unavailable: {error()}</span>}</Show>
     </div></Show>
     <div class="jello-file-queries" role="toolbar" aria-label="Language queries">
       <For each={navigationQueries}>{(query) => <button type="button" disabled={queryDisabled()} title={query.shortcut} onClick={() => run(query.kind)}>{query.label}</button>}</For>
