@@ -209,6 +209,24 @@ export const Status = Rpc.define({
         additionalProperties: false,
       },
     },
+    worktreeSessions: {
+      input: {
+        type: "object", properties: { directory: { type: "string" } }, required: ["directory"], additionalProperties: false,
+      },
+      output: {
+        type: "object", properties: {
+          worktreeSessions: {
+            type: "array", items: {
+              type: "object", properties: {
+                sessionID: { type: "string" }, title: { type: "string" }, directory: { type: "string" },
+                workspace: { type: "string" }, commitID: { type: "string" }, busy: { type: "boolean" },
+              }, required: ["sessionID", "title", "directory", "workspace", "commitID", "busy"], additionalProperties: false,
+            },
+          },
+          worktreeSessionsTruncated: { type: "boolean" },
+        }, required: ["worktreeSessions", "worktreeSessionsTruncated"], additionalProperties: false,
+      },
+    },
     changedFiles: {
       input: {
         type: "object",

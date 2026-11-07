@@ -84,3 +84,29 @@ test("createLatest ignores superseded requests and aborts publication on window 
     assert.equal(model.history.latest?.hasMore, false)
   } finally { dispose() }
 })
+
+test("slow worktree presence never blocks history and uses the explicit request location", { skip: isServer }, async () => {
+  const presence = deferred<{ worktreeSessions: []; worktreeSessionsTruncated: false }>()
+  let calls = 0
+  let request: unknown
+  const client = { rpc: () => ({
+    tree: async () => ({ commits: [], hasMore: false }),
+    worktreeSessions: (_input: unknown, options: unknown) => { calls++; request = options; return presence.promise },
+  }) } as unknown as MountedSession["server"]["client"]
+  let model!: HistoryModel; let dispose!: () => void
+  createRoot((cleanup) => { dispose = cleanup; model = createHistoryModel("/remote/repo"); model.configure(client, 100, 0) })
+  try {
+    await flush()
+    assert.equal(model.history.loading, false)
+    assert.ok(model.history.latest)
+    assert.equal(model.sessionPositions.loading, true)
+    assert.equal(calls, 1)
+    assert.deepEqual((request as { location: unknown }).location, { directory: "/remote/repo" })
+    model.configure(client, 200, 0)
+    await flush()
+    assert.equal(calls, 1, "loading more history must not duplicate presence requests")
+    presence.resolve({ worktreeSessions: [], worktreeSessionsTruncated: false })
+    await flush()
+    assert.equal(model.sessionPositions.loading, false)
+  } finally { dispose() }
+})

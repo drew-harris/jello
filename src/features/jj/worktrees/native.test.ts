@@ -53,6 +53,10 @@ test("native OpenCode create/refresh/remove uses Jello's JJ strategy", {
     // A real Jello JJ operation must work, not just Git repository discovery.
     const status = await api("post", "/api/rpc/jello.jj.status/status", { input: { directory: created.directory } }, created.directory)
     assert.match(status.output.text, /Working copy/)
+    const session = await api("post", "/api/session", { title: "Session on a worktree", location: { directory: created.directory } })
+    const positions = await api("post", "/api/rpc/jello.jj.status/worktreeSessions", { input: { directory: root } })
+    assert.equal(positions.output.worktreeSessions.find((entry: { sessionID: string }) => entry.sessionID === session.data.id)?.title, "Session on a worktree")
+    await api("delete", `/api/session/${session.data.id}`)
     await mkdir(join(created.directory, "build"))
     await writeFile(join(created.directory, "build", "cache"), "do not silently delete\n")
     await assert.rejects(api("delete", "/api/worktree", { projectID, directory: created.directory, force: false }), (error: unknown) => {

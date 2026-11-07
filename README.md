@@ -51,6 +51,14 @@ the last fetched remote state; refreshing the tree does not fetch from Git.
 The view respects the repository's default `jj log` revset. Dashed, capped edges
 indicate parents outside the displayed history; they do not infer connections
 through hidden revisions. Load more adds 100 revisions at a time (up to 2,000).
+Other non-archived conversations in the same server/project's JJ workspaces appear
+as clickable session badges on their exact working-copy commits. A green dot
+indicates a running session; hover shows its workspace/path. More than three
+sessions on a row open a picker. Sessions outside the configured log view are
+listed below the graph instead of changing your revset. Positions reflect JJ's
+last snapshot, not unsaved file edits, and load independently of history without
+scanning other checkouts. The lookup covers the latest 2,000 root conversations;
+archived sessions and subagent conversations are omitted.
 Each commit row shows its subject, author and age; there is no separate selection
 details pane. Use ↑/↓ to navigate, Enter or double-click to open a diff, and **@**
 to jump to the working copy. Refresh runs every 10 seconds while the window is

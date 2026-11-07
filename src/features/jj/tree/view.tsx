@@ -22,6 +22,8 @@ import { createPolling } from "../../../shared/gui/poll"
 import { observeRepository, repositoryServices, sessionRepository } from "../../../shared/gui/repository"
 import { JJ_CHANGED } from "../invalidation"
 import { createChangeActions } from "./actions"
+import { worktreeSessionGroups } from "./worktree-sessions"
+import { SessionBadges } from "./session-badges"
 
 function ChangeID(props: { commit: TreeCommit }) {
   const label = () => changeIDLabel(props.commit)
@@ -91,6 +93,9 @@ export function TreeView(props: { session: MountedSession; models: ViewModels<Hi
   const visible = () => !document.hidden && !!panel?.isConnected && !!panel.getClientRects().length
   observeRepository(repositories.events, repository, ["jj.history", "jj.bookmarks"], () => model.invalidate({ defer: !visible() }))
   const commits = () => history.latest?.commits ?? []
+  const positions = model.sessionPositions
+  const sessionGroups = createMemo(() => worktreeSessionGroups(positions.error ? [] : positions.latest?.worktreeSessions ?? [], props.session.id,
+    new Set(commits().map((commit) => commit.commitID))))
   const [graphState, setGraph] = createStore<ReturnType<typeof layoutHistory>>({ rows: [], lanes: 1 })
   // Retain keyed row/component identities when polling returns fresh objects.
   // This keeps expanded resources mounted and their existing file lists visible.
@@ -283,7 +288,7 @@ export function TreeView(props: { session: MountedSession; models: ViewModels<Hi
     // Portaled menus/dialogs and editable controls must never drive the tree.
     if (event.defaultPrevented || !panel.contains(document.activeElement) || ctx.dialogs.active() || confirming() || contextMenu()) return
     if (!(event.target instanceof Element) || !panel.contains(event.target)
-      || event.target.closest("input, textarea, select, [contenteditable]:not([contenteditable=false]), [role=textbox]")) return
+      || event.target.closest("input, textarea, select, [contenteditable]:not([contenteditable=false]), [role=textbox], .jello-jj-tree-sessions")) return
     const action = treeShortcut(event)
     if (action === "refresh") {
       event.preventDefault()
@@ -336,6 +341,15 @@ export function TreeView(props: { session: MountedSession; models: ViewModels<Hi
       </button>
       </div>
     </header>
+    <Show when={positions.loading && !positions.latest}>
+      <div class="jello-jj-tree-session-notice" role="status">Loading worktree session positions…</div>
+    </Show>
+    <Show when={positions.error}>
+      <div class="jello-jj-tree-session-notice" role="status" title={errorMessage(positions.error)}>Worktree session positions unavailable. <button type="button" disabled={positions.loading} onClick={model.refreshPositions}>Retry</button></div>
+    </Show>
+    <Show when={positions.latest?.worktreeSessionsTruncated}>
+      <div class="jello-jj-tree-session-notice" role="status">Session positions cover the latest 2,000 non-archived conversations.</div>
+    </Show>
     <Show when={history.error}>
       <div class="jello-jj-tree-empty" role="alert"><strong>History unavailable</strong><p>{errorMessage(history.error)}</p><button type="button" onClick={refresh}>Retry</button></div>
     </Show>
@@ -433,11 +447,20 @@ export function TreeView(props: { session: MountedSession; models: ViewModels<Hi
                     <Show when={row.missingParents.length}><span class="jello-jj-tree-boundary" title="Parent revisions are outside this log view. Dashed edges end here; no ancestry is inferred.">···</span></Show>
                   </span>
                 </button>
+                <Show when={sessionGroups().rows.get(row.commit.commitID)?.length}>
+                  <SessionBadges sessions={sessionGroups().rows.get(row.commit.commitID) ?? []} server={props.session.server.id} />
+                </Show>
                 <Show when={expanded().has(row.commit.changeID)}>
                   <RevisionFiles session={props.session} models={props.filesModels} commitID={row.commit.commitID} changeID={row.commit.changeID} divergent={row.commit.divergent} />
                 </Show>
               </li>}</For>
             </ol>
+          </div>
+        </Show>
+        <Show when={sessionGroups().outside.length}>
+          <div class="jello-jj-tree-sessions-outside">
+            <span>Worktree sessions outside this log view</span>
+            <SessionBadges sessions={sessionGroups().outside} server={props.session.server.id} outside />
           </div>
         </Show>
         <footer class="jello-jj-tree-tail">

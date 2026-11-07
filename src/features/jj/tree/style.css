@@ -99,6 +99,16 @@
 .jello-jj-tree-bookmark > span[aria-hidden] { display: flex; flex-shrink: 0; }
 .jello-jj-tree-bookmark-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .jello-jj-tree-warning { color: var(--tree-warning); font-size: 10px; }
+.jello-jj-tree-sessions { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; padding: 0 14px 5px var(--tree-gutter, 12px); }
+.jello-jj-tree .jello-jj-tree-session { display: inline-flex; align-items: center; gap: 4px; min-width: 0; max-width: 200px; padding: 2px 6px; border: 1px solid color-mix(in srgb, var(--tree-accent) 35%, transparent); border-radius: 4px; background: color-mix(in srgb, var(--tree-accent) 10%, transparent); color: var(--tree-accent); font-size: 10px; line-height: 14px; }
+.jello-jj-tree-session > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jello-jj-tree-session > span[aria-hidden] { display: flex; flex-shrink: 0; }
+.jello-jj-tree .jello-jj-tree-session:hover { background: color-mix(in srgb, var(--tree-accent) 20%, transparent); }
+.jello-jj-tree-session.is-busy::after { content: ""; width: 5px; height: 5px; flex: none; border-radius: 50%; background: var(--tree-empty); }
+.jello-jj-tree-session-notice { padding: 5px 12px; color: var(--tree-muted); font-size: 10px; }
+.jello-jj-tree-sessions-outside { padding-top: 8px; border-top: 1px solid var(--tree-border); }
+.jello-jj-tree-sessions-outside > span { display: block; padding: 0 12px 5px; color: var(--tree-muted); font-size: 11px; }
+.jello-jj-tree-session-list { display: flex; flex-direction: column; gap: 6px; max-height: 50vh; overflow: auto; }
 .jello-jj-tree-row-author { margin-left: 9px; min-width: 0; max-width: 160px; overflow: hidden; text-overflow: ellipsis; color: var(--tree-muted); font-size: 11px; }
 .jello-jj-tree-age { margin-left: auto; padding-left: 4px; color: var(--tree-muted); font-size: 11px; flex-shrink: 0; }
 .jello-jj-tree-subject { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }

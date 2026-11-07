@@ -13,6 +13,7 @@ import { editChange } from "./tree/edit.ts"
 import { readSquashDetails, squashBelow } from "./tree/squash.ts"
 import { pushChange } from "./tree/push.ts"
 import { readFileChanges } from "./file-changes.ts"
+import { readWorktreeSessions } from "./tree/worktree-sessions-server.ts"
 
 export async function setupJJ(ctx: Plugin.Context) {
   await ctx.rpc.register(Status, {
@@ -74,6 +75,10 @@ export async function setupJJ(ctx: Plugin.Context) {
     tree: async (input, context) => {
       const { directory, limit } = input as { directory: string; limit: number }
       return readTree(directory, limit, context.signal)
+    },
+    worktreeSessions: async (input, context) => {
+      const { directory } = input as { directory: string }
+      return readWorktreeSessions(ctx, directory, context.signal)
     },
     changedFiles: async (input, context) => {
       const { directory } = input as { directory: string }
