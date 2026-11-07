@@ -68,6 +68,27 @@
 .jello-file-stage { display: flex; flex: 1; flex-direction: column; min-height: 0; min-width: 0; position: relative; }
 .jello-file-code { flex: 1; min-width: 0; min-height: 0; overflow: auto; position: relative; }
 .jello-file-code:focus { outline: none; }
+.jello-file-view .jello-diff-comment {
+  box-sizing: border-box; min-width: 0; margin: 8px 12px; padding: 12px;
+  border: 1px solid var(--file-border); border-radius: 8px; background: var(--file-bg); color: var(--file-fg);
+  font: 13px/1.5 var(--font-family-sans, system-ui, sans-serif); white-space: normal;
+}
+.jello-file-view .jello-diff-comment form { margin: 0; }
+.jello-file-view .jello-diff-comment textarea {
+  display: block; box-sizing: border-box; width: 100%; min-width: 0; min-height: 80px; padding: 8px; resize: vertical;
+  border: 1px solid var(--file-border); border-radius: 4px; background: var(--file-bg); color: inherit; font: inherit;
+}
+.jello-file-view .jello-diff-comment textarea:focus-visible { outline: 2px solid var(--file-accent); outline-offset: 1px; }
+.jello-file-view .jello-diff-comment button {
+  flex-shrink: 0; padding: 4px 10px; border: 1px solid var(--file-border); border-radius: 4px;
+  background: var(--file-hover); color: inherit; font: inherit;
+}
+.jello-file-view .jello-diff-comment button:hover:not(:disabled) { background: var(--file-selected); }
+.jello-file-view .jello-diff-comment .jello-diff-comment-body {
+  display: block; width: 100%; padding: 0; border: 0; background: transparent; text-align: left; white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.jello-file-view .jello-diff-comment-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; align-items: center; }
+.jello-file-view .jello-diff-comment-actions span { flex: 1; color: var(--file-muted); font-size: 12px; }
 .jello-file-error { padding: 6px 12px; color: #c54a4a; }
 .jello-file-hover { position: relative; flex-shrink: 0; max-height: 150px; overflow: auto; padding: 8px 12px; background: var(--file-hover); border-bottom: 1px solid var(--file-border); }
 .jello-file-hover > button { float: right; }

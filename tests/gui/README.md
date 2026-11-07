@@ -33,7 +33,12 @@ Check:
    to the original destination line. Arrow/Page keys, j/k and Ctrl+D/U scroll
    source rather than the parent diff.
 7. Menus focus the first enabled item, support arrows/Home/End, and restore focus
-   on Escape. Confirm no uncaught errors in the browser console.
+    on Escape. Confirm no uncaught errors in the browser console.
+8. Open the peek modal and drag gutter line numbers 2–4. A comment editor should
+   appear below the range and receive focus. Save a comment: the modal stays open,
+   and `window.fileViewTest.attachments` contains `main.ts`, lines 2–4, and a
+   two-line preview. Edit the saved comment and press Escape: editing cancels
+   without closing the modal. Delete it: both the comment and attachment disappear.
 
 `window.fileViewTest.model` and `window.fileViewTest.calls` are exposed for browser
 automation. The production bundle neither imports this harness nor its SDK stub.

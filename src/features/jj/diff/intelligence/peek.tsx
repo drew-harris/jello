@@ -1,5 +1,5 @@
 import { createEffect, createMemo, createSignal, onCleanup, Show, type Accessor } from "solid-js"
-import { usePlugin, type MountedSession } from "@opencode/plugin/gui"
+import { usePlugin, type MountedSession, type SessionScreen } from "@opencode/plugin/gui"
 import type { DiffTokenEventBaseProps } from "@pierre/diffs"
 import { Intelligence, type PeekKind, type PeekLocation, type PeekResult, type SymbolPosition } from "../../../intelligence/rpc"
 import { contextToken, isSelectedOccurrence, tokenPosition } from "./position"
@@ -278,7 +278,7 @@ export function PeekContextMenu(props: { peek: CodePeek }) {
   </>
 }
 
-export function CodePeekPanel(props: { peek: CodePeek; directory: string }) {
+export function CodePeekPanel(props: { peek: CodePeek; directory: string; screen: SessionScreen }) {
   const ctx = usePlugin()
-  return <PeekPanel peek={props.peek} directory={props.directory} theme={`jello-jj-${ctx.appearance.mode()}`} />
+  return <PeekPanel peek={props.peek} directory={props.directory} theme={`jello-jj-${ctx.appearance.mode()}`} screen={props.screen} />
 }

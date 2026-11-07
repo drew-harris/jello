@@ -1,16 +1,43 @@
 import { CodeView, type TokenEventBase } from "@pierre/diffs"
-import { createEffect, on, onCleanup, onMount } from "solid-js"
-import { usePlugin } from "@opencode/plugin/gui"
+import { createEffect, createMemo, on, onCleanup, onMount } from "solid-js"
+import { usePlugin, type SessionScreen } from "@opencode/plugin/gui"
 import { createOccurrenceHighlights } from "./highlights"
 import { isSelectedOccurrence, sourceToken, tokenPosition } from "./position"
 import type { FileViewModel } from "./file-model"
-import { sourceItem, sourceScrollTarget } from "./file-rendering"
-import { gutterCSS, paintGutter } from "./file-changes"
+import { sourceCommentPath, sourceCommentPreview, sourceItem, sourceScrollTarget } from "./file-rendering"
+import { changeHunkLines, gutterCSS, paintGutter } from "./file-changes"
+import { adjacentHunk, type RegisterHunkNavigator } from "../../shared/gui/hunk-navigation"
+import { createLineComments, type CommentAnnotation } from "../../shared/gui/line-comments"
 
-export function FileCode(props: { model: FileViewModel; theme?: string; wrap: boolean; menu(x: number, y: number): void }) {
+export function FileCode(props: { model: FileViewModel; directory: string; screen: SessionScreen; theme?: string; wrap: boolean; menu(x: number, y: number): void; registerHunkNavigator: RegisterHunkNavigator }) {
   const ctx = usePlugin()
   let container!: HTMLDivElement
-  const viewer = new CodeView()
+  const viewer = new CodeView<CommentAnnotation["metadata"]>()
+  const comments = createLineComments(() => props.screen, () => viewer.setSelectedLines(null))
+  const commentPath = () => sourceCommentPath(props.model.document()?.path ?? "", props.directory)
+  const annotations = createMemo(() => comments.annotations(commentPath())
+    .filter((annotation) => annotation.side !== "deletions"))
+  createEffect(on(props.model.document, () => comments.cancel(), { defer: true }))
+  let scrollTop = 0
+  let destination: number | undefined
+  const resetDestination = () => { destination = undefined }
+  createEffect(on([props.model.document, props.model.changes, props.model.navigation, () => props.wrap], resetDestination))
+  onCleanup(props.registerHunkNavigator((direction, smooth) => {
+    const document = props.model.document()
+    const item = viewer.getRenderedItems().find((item) => item.id === document?.path)
+    if (!document || item?.type !== "file") return
+    const itemTop = viewer.getTopForItem(document.path) ?? 0
+    const targets = changeHunkLines(props.model.changes()?.markers ?? []).flatMap((line) => {
+      const position = item.instance.getLinePosition(line + 1)
+      return position ? [{ line, top: itemTop + position.top }] : []
+    })
+    const previous = destination === undefined ? -1 : targets.findIndex((target) => target.line === destination)
+    const target = previous >= 0 ? targets[previous + direction] : adjacentHunk(targets, scrollTop, direction)
+    if (!target) return
+    destination = target.line
+    viewer.scrollTo({ type: "line", id: document.path, lineNumber: target.line + 1, align: "start",
+      behavior: smooth && !window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "smooth" : "instant" })
+  }))
   const gutterRoots = new Set<HTMLElement>()
   const paint = (node: HTMLElement) => paintGutter(node.shadowRoot ?? node, props.model.changes()?.markers ?? [])
   createEffect(() => {
@@ -32,7 +59,22 @@ export function FileCode(props: { model: FileViewModel; theme?: string; wrap: bo
     void props.model.choose(position)
     return position
   }
-  onMount(() => viewer.setup(container))
+  onMount(() => {
+    viewer.setup(container)
+    onCleanup(viewer.subscribeToScroll((top) => { scrollTop = top }))
+    container.addEventListener("wheel", resetDestination, { passive: true })
+    container.addEventListener("pointerdown", resetDestination)
+    const panel = container.closest(".jello-file-view")
+    const keydown = (event: Event) => {
+      if (event instanceof KeyboardEvent && !["[", "]", "{", "}"].includes(event.key)) resetDestination()
+    }
+    panel?.addEventListener("keydown", keydown, true)
+    onCleanup(() => {
+      container.removeEventListener("wheel", resetDestination)
+      container.removeEventListener("pointerdown", resetDestination)
+      panel?.removeEventListener("keydown", keydown, true)
+    })
+  })
   createEffect(on([() => props.theme, () => props.wrap, () => ctx.appearance.mode()], () => {
     viewer.setOptions({
       theme: props.theme ?? { light: "github-light", dark: "github-dark" },
@@ -41,6 +83,11 @@ export function FileCode(props: { model: FileViewModel; theme?: string; wrap: bo
       disableFileHeader: true,
       enableLineSelection: true,
       enableGutterUtility: false,
+      onLineSelectionEnd: (range) => {
+        const document = props.model.document()
+        if (document) comments.open(commentPath(), range, range ? sourceCommentPreview(document, range) : undefined)
+      },
+      renderAnnotation: comments.render,
       itemMetrics: { lineHeight: 22, spacing: 0 },
       layout: { paddingTop: 8, paddingBottom: 16, gap: 0 },
       tokenizeMaxLineLength: 10_000,
@@ -75,9 +122,10 @@ export function FileCode(props: { model: FileViewModel; theme?: string; wrap: bo
     })
   }))
   let version = 0
-  createEffect(on(props.model.document, (document) => {
-    viewer.setItems(document ? [sourceItem(document, ++version)] : [])
-  }))
+  createEffect(() => {
+    const document = props.model.document()
+    viewer.setItems(document ? [sourceItem<CommentAnnotation["metadata"]>(document, ++version, annotations())] : [])
+  })
   createEffect(on(props.model.navigation, () => {
     const document = props.model.document()
     const location = props.model.location()

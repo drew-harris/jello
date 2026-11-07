@@ -10,6 +10,7 @@ import type { CodePeek } from "./intelligence/peek"
 import { createOccurrenceHighlights } from "../../intelligence/highlights"
 import { hasDefinitionLine, nextDefinitionFrame } from "./intelligence/jump"
 import { openFileClick } from "./file-open"
+import { adjacentHunk, hunkLine, type RegisterHunkNavigator } from "./hunks"
 
 export function MultiFileDiff(props: {
   files: FileDiffMetadata[]
@@ -21,6 +22,7 @@ export function MultiFileDiff(props: {
   screen: SessionScreen
   peek: CodePeek
   loadDiffFiles: FileDiffContentsLoader
+  registerHunkNavigator: RegisterHunkNavigator
 }) {
   const ctx = usePlugin<typeof definition>()
   let container!: HTMLDivElement
@@ -29,6 +31,30 @@ export function MultiFileDiff(props: {
   const comments = createDiffComments(() => props.screen, () => viewer.setSelectedLines(null))
   const occurrences = createOccurrenceHighlights(props.peek)
   const [expanded, setExpanded] = createSignal(false)
+  let scrollTop = 0
+  let destination: { id: string; hunk: number } | undefined
+  const resetDestination = () => { destination = undefined }
+  createEffect(on([() => props.files, () => props.layout, () => props.wrap, () => props.navigation, expanded], resetDestination))
+  onCleanup(props.registerHunkNavigator((direction, smooth) => {
+    const rendered = new Map(viewer.getRenderedItems().map((item) => [item.id, item]))
+    const targets = props.files.flatMap((file) => {
+      const top = viewer.getTopForItem(file.name)
+      if (top === undefined) return []
+      const item = rendered.get(file.name)
+      const header = item?.element.shadowRoot?.querySelector<HTMLElement>("[data-diffs-header]")?.getBoundingClientRect().height ?? 0
+      return file.hunks.map((hunk, index) => {
+        const line = hunkLine(hunk)
+        const position = item?.type === "diff" ? item.instance.getLinePosition(line.lineNumber, line.side) : undefined
+        return { id: file.name, hunk: index, ...line, top: top + (position?.top ?? 0) - header }
+      })
+    })
+    const previous = destination ? targets.findIndex((target) => target.id === destination!.id && target.hunk === destination!.hunk) : -1
+    const target = previous >= 0 ? targets[previous + direction] : adjacentHunk(targets, scrollTop, direction)
+    if (!target) return
+    destination = target
+    viewer.scrollTo({ type: "line", id: target.id, lineNumber: target.lineNumber, side: target.side,
+      align: "start", behavior: smooth && !window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "smooth" : "instant" })
+  }))
   onCleanup(props.peek.registerDefinitionJump(async (location, signal) => {
     const file = props.files.find((file) => file.name === location.path)
     if (!file || !hasDefinitionLine(file, location.line)) return false
@@ -51,10 +77,24 @@ export function MultiFileDiff(props: {
   }
   onMount(() => {
     viewer.setup(container)
-    const unsubscribe = viewer.subscribeToScroll((scrollTop) => {
+    const unsubscribe = viewer.subscribeToScroll((top) => {
+      scrollTop = top
       const files = props.files
       const index = stackFileIndex(files.length, (index) => viewer.getTopForItem(files[index].name) ?? Infinity, scrollTop)
       if (index >= 0) props.select(index)
+    })
+    container.addEventListener("wheel", resetDestination, { passive: true })
+    container.addEventListener("pointerdown", resetDestination)
+    // Other keyboard scrolling should navigate relative to the new viewport.
+    const panel = container.closest(".jello-jj-diff")
+    const keydown = (event: Event) => {
+      if (event instanceof KeyboardEvent && !["[", "]", "{", "}"].includes(event.key)) resetDestination()
+    }
+    panel?.addEventListener("keydown", keydown, true)
+    onCleanup(() => {
+      container.removeEventListener("wheel", resetDestination)
+      container.removeEventListener("pointerdown", resetDestination)
+      panel?.removeEventListener("keydown", keydown, true)
     })
     onCleanup(unsubscribe)
   })

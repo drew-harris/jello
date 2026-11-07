@@ -1,5 +1,5 @@
-import type { SessionScreen } from "@opencode/plugin/gui"
 import type { FileDiffMetadata, SelectedLineRange } from "@pierre/diffs"
+export { saveDiffComment, updateDiffComment, removeDiffComment } from "../../../shared/gui/comment-attachments"
 
 // Matches OpenCode's review selectionPreview, but translates absolute line
 // numbers into our bounded patch's hunk arrays. Preview is UI-only, not a quote.
@@ -19,44 +19,4 @@ export function diffCommentPreview(file: FileDiffMetadata, range: SelectedLineRa
     }
   }
   return lines.length ? lines.join("\n") : undefined
-}
-
-// Deliberately use the same APIs and attachment shape as OpenCode's
-// packages/gui-plugins/src/review/model.ts. The host formats the prompt,
-// resolves file references, persists drafts, and restores sent comments.
-export function saveDiffComment(screen: SessionScreen, input: {
-  file: string
-  selection: SelectedLineRange
-  comment: string
-  preview?: string
-}) {
-  const comment = input.comment.trim()
-  if (!comment || !screen.composer.quotable()) return undefined
-  const saved = screen.comment.add({ file: input.file, selection: { ...input.selection }, comment })
-  screen.composer.attach({
-    type: "file",
-    path: input.file,
-    selection: {
-      startLine: Math.min(input.selection.start, input.selection.end),
-      endLine: Math.max(input.selection.start, input.selection.end),
-      startChar: 0,
-      endChar: 0,
-    },
-    comment,
-    commentID: saved.id,
-    commentOrigin: "review",
-    preview: input.preview,
-  })
-  return saved
-}
-
-export function updateDiffComment(screen: SessionScreen, id: string, comment: string) {
-  if (!comment.trim()) return
-  screen.comment.update(id, comment.trim())
-  screen.composer.update(id, { comment: comment.trim() })
-}
-
-export function removeDiffComment(screen: SessionScreen, id: string) {
-  screen.comment.remove(id)
-  screen.composer.detach(id)
 }

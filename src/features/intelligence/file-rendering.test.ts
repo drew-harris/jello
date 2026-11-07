@@ -2,7 +2,18 @@ import { strict as assert } from "node:assert"
 import { test } from "node:test"
 import { getFiletypeFromFileName, getSharedHighlighter } from "@pierre/diffs"
 import { registerDiffThemes } from "../jj/diff/theme"
-import { sourceItem, sourceScrollTarget } from "./file-rendering"
+import { sourceCommentPath, sourceCommentPreview, sourceItem, sourceScrollTarget } from "./file-rendering"
+
+test("source comments use workspace paths and bounded previews for either drag direction", () => {
+  const document = { path: "/repo/main.ts", text: "first\r\nsecond\r\nthird\r\nfourth", queryable: true }
+  assert.equal(sourceCommentPath(document.path, "/repo"), "main.ts")
+  assert.equal(sourceCommentPath(document.path, "/repo/"), "main.ts")
+  assert.equal(sourceCommentPath("/repository/main.ts", "/repo"), "/repository/main.ts")
+  assert.equal(sourceCommentPreview(document, { start: 4, end: 2 }), "second\nthird")
+  assert.equal(sourceCommentPreview(document, { start: 1, end: 1 }), "first")
+  const annotations = [{ lineNumber: 3, metadata: { id: "comment-1" } }]
+  assert.equal(sourceItem(document, 1, annotations).annotations, annotations)
+})
 
 test("file renderer receives all source content and a versioned native file item", () => {
   const document = { path: "/repo/main.ts", text: "// first\n".repeat(1000) + "// last\n", queryable: true }

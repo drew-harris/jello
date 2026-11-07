@@ -1,5 +1,5 @@
 import { FileDiff, type FileDiffContentsLoader, type FileDiffMetadata } from "@pierre/diffs"
-import { batch, createEffect, createMemo, createSignal, ErrorBoundary, For, on, onCleanup, Show, Suspense } from "solid-js"
+import { batch, createEffect, createMemo, createSignal, ErrorBoundary, For, on, onCleanup, onMount, Show, Suspense } from "solid-js"
 import { usePlugin, type MountedSession, type SessionScreen } from "@opencode/plugin/gui"
 import type { RevisionDiff } from "./server"
 import { parseDiffTabID, type DiffTabRevision } from "./tab"
@@ -8,7 +8,8 @@ import { buildFileTree, type FileTreeNode } from "./tree"
 import { DiffIcon, FileIcon } from "./icons"
 import { diffThemeCSS } from "./theme"
 import { revisionAge } from "./time"
-import { diffScrollAmount } from "./shortcuts"
+import { diffHunkShortcut, diffScrollAmount, diffToggleShortcut } from "./shortcuts"
+import { adjacentHunk, hunkRow, type HunkNavigator, type RegisterHunkNavigator } from "./hunks"
 import { MultiFileDiff } from "./multi-file"
 import { createDiffScroller } from "./scroll"
 import { normalizeDiffFontSize, type definition } from "../../../gui/definition"
@@ -37,13 +38,48 @@ interface DiffResult {
   refreshError: string
 }
 
-function DiffFile(props: { file: FileDiffMetadata; layout: "unified" | "split"; wrap: boolean; screen: SessionScreen; peek: CodePeek; loadDiffFiles: FileDiffContentsLoader }) {
+function DiffFile(props: { file: FileDiffMetadata; layout: "unified" | "split"; wrap: boolean; screen: SessionScreen; peek: CodePeek; loadDiffFiles: FileDiffContentsLoader; registerHunkNavigator: RegisterHunkNavigator }) {
   const ctx = usePlugin<typeof definition>()
   let container!: HTMLDivElement
   const viewer = new FileDiff<DiffAnnotation["metadata"]>()
   const comments = createDiffComments(() => props.screen, () => viewer.setSelectedLines(null))
   const occurrences = createOccurrenceHighlights(props.peek)
   const [expanded, setExpanded] = createSignal(false)
+  let destination: number | undefined
+  onMount(() => {
+    const scroll = container.closest<HTMLElement>(".jello-jj-diff-content")!
+    const reset = () => { destination = undefined }
+    const settled = () => { if (destination !== undefined && Math.abs(scroll.scrollTop - destination) < 2) reset() }
+    scroll.addEventListener("wheel", reset, { passive: true })
+    scroll.addEventListener("pointerdown", reset)
+    scroll.addEventListener("scroll", settled, { passive: true })
+    const panel = container.closest(".jello-jj-diff")
+    const keydown = (event: Event) => {
+      if (event instanceof KeyboardEvent && !["[", "]", "{", "}"].includes(event.key)) reset()
+    }
+    panel?.addEventListener("keydown", keydown, true)
+    onCleanup(() => {
+      scroll.removeEventListener("wheel", reset)
+      scroll.removeEventListener("pointerdown", reset)
+      scroll.removeEventListener("scroll", settled)
+      panel?.removeEventListener("keydown", keydown, true)
+    })
+  })
+  createEffect(on([() => props.file, () => props.layout, () => props.wrap, expanded], () => { destination = undefined }))
+  onCleanup(props.registerHunkNavigator((direction, smooth) => {
+    const scroll = container.closest<HTMLElement>(".jello-jj-diff-content")
+    if (!scroll) return
+    const top = scroll.getBoundingClientRect().top
+    const targets = props.file.hunks.flatMap((hunk) => {
+      const row = hunkRow(container, hunk)
+      return row ? [{ top: Math.max(0, Math.min(scroll.scrollHeight - scroll.clientHeight,
+        scroll.scrollTop + row.getBoundingClientRect().top - top)) }] : []
+    })
+    const target = adjacentHunk(targets, destination ?? scroll.scrollTop, direction)
+    if (!target) return
+    destination = target.top
+    scroll.scrollTo({ top: target.top, behavior: smooth && !window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "smooth" : "instant" })
+  }))
   onCleanup(props.peek.registerDefinitionJump(async (location, signal) => {
     if (location.path !== props.file.name || !hasDefinitionLine(props.file, location.line)) return false
     if (!definitionRow(container, location.line)) {
@@ -140,9 +176,14 @@ interface DiffViewProps {
 }
 
 export function DiffView(props: DiffViewProps) {
-  const ctx = usePlugin()
+  const ctx = usePlugin<typeof definition>()
   const ui = ctx.ui
   let panel!: HTMLElement
+  let navigateHunk: HunkNavigator | undefined
+  const registerHunkNavigator: RegisterHunkNavigator = (navigate) => {
+    navigateHunk = navigate
+    return () => { if (navigateHunk === navigate) navigateHunk = undefined }
+  }
   // Wait for the host's tab-opening frame before taking keyboard focus. Only
   // opening/selecting a tab triggers this, never polling or renderer updates.
   createEffect(on([() => props.tabID, () => props.focusRevision], () => {
@@ -180,6 +221,27 @@ export function DiffView(props: DiffViewProps) {
     // the retargeted element so editing/copying inside it retains native keys.
     if (event.composedPath().some((node) => node instanceof HTMLElement
       && (node.isContentEditable || node.matches("input, textarea, select, [role=textbox], .jello-file-view")))) return
+    const hunk = diffHunkShortcut(event)
+    if (hunk && navigateHunk) {
+      event.preventDefault()
+      event.stopPropagation()
+      stop()
+      navigateHunk(hunk.direction, hunk.smooth)
+      return
+    }
+    const toggle = diffToggleShortcut(event)
+    if (toggle) {
+      event.preventDefault()
+      event.stopPropagation()
+      stop()
+      ctx.stores.jjDiff.update((draft) => {
+        if (toggle === "layout") draft.layout = draft.layout === "split" ? "unified" : "split"
+        else draft[toggle] = !draft[toggle]
+      })
+      // Hiding the sidebar can remove the focused control. Keep shortcuts active.
+      if (!panel.contains(document.activeElement)) panel.focus({ preventScroll: true })
+      return
+    }
     const content = panel.querySelector<HTMLElement>(".jello-jj-diff-content")
     if (!content) return
     const amount = diffScrollAmount(event, content.clientHeight)
@@ -204,6 +266,7 @@ export function DiffView(props: DiffViewProps) {
     <Suspense fallback={<div class="jello-jj-diff-empty" role="status">Loading revision diff…</div>}>
       <Show keyed when={`${diffSessionKey(props.session)}\0${props.tabID}`}>
         {(key) => <DiffContents session={props.session} screen={props.screen} tabID={props.tabID} models={props.models} modelKey={key}
+          registerHunkNavigator={registerHunkNavigator}
           focusRevision={props.focusRevision} requestedFile={props.requestedFile} onRevision={props.onRevision} />}
       </Show>
     </Suspense>
@@ -211,7 +274,7 @@ export function DiffView(props: DiffViewProps) {
   </section>
 }
 
-function DiffContents(props: DiffViewProps & { modelKey: string }) {
+function DiffContents(props: DiffViewProps & { modelKey: string; registerHunkNavigator: RegisterHunkNavigator }) {
   const ctx = usePlugin<typeof definition>()
   const ui = ctx.ui
   const model = props.models.use(props.modelKey, () => createDiffModel(props.tabID))
@@ -357,7 +420,7 @@ function DiffContents(props: DiffViewProps & { modelKey: string }) {
                 <label class="jello-jj-diff-filter"><DiffIcon name="search" />
                   <input type="search" aria-label="Filter changed files" placeholder="Filter files" value={query()} onInput={(event) => setQuery(event.currentTarget.value)} />
                 </label>
-                <button type="button" class="jello-jj-diff-heading-icon" title="Hide file tree" aria-label="Hide file tree"
+                <button type="button" class="jello-jj-diff-heading-icon" title="Hide file tree (f)" aria-label="Hide file tree"
                   aria-expanded={sidebar()} onClick={() => setSidebar(false)}><DiffIcon name="tree" /></button>
               </div>
               <nav class="jello-jj-diff-files" aria-label="Changed files"><ul>
@@ -392,7 +455,7 @@ function DiffContents(props: DiffViewProps & { modelKey: string }) {
           <div class="jello-jj-diff-main">
             <div class="jello-jj-diff-toolbar">
               <Show when={!sidebar()}>
-                <button type="button" class="jello-jj-diff-icon-button" title="Show file tree" aria-label="Show file tree"
+                <button type="button" class="jello-jj-diff-icon-button" title="Show file tree (f)" aria-label="Show file tree"
                   aria-expanded={sidebar()} onClick={() => setSidebar(true)}><DiffIcon name="tree" /></button>
               </Show>
               <button type="button" class="jello-jj-diff-icon-button" title="Previous file" aria-label="Previous file" disabled={selected() <= 0} onClick={() => selectFile(selected() - 1)}><DiffIcon name="previous" /></button>
@@ -402,13 +465,13 @@ function DiffContents(props: DiffViewProps & { modelKey: string }) {
               <button type="button" class="jello-jj-diff-icon-button" title="Refresh diff" aria-label="Refresh diff"
                 disabled={slowRefresh()} aria-disabled={loading()} onClick={refetch}><DiffIcon name="refresh" /></button>
               <button type="button" class="jello-jj-diff-icon-button" title="Wrap lines" aria-label="Wrap lines" aria-pressed={wrap()} onClick={() => setWrap(!wrap())}><DiffIcon name="wrap" /></button>
-              <button type="button" class="jello-jj-diff-icon-button" title="Multi-file mode — stack all changed files" aria-label="Multi-file mode"
+              <button type="button" class="jello-jj-diff-icon-button" title="Multi-file mode — stack all changed files (c)" aria-label="Multi-file mode"
                 aria-pressed={multiFile()} onClick={() => setMultiFile(!multiFile())}>
                 <span aria-hidden="true"><ui.Icon name="bullet-list" size="small" /></span>
               </button>
               <div class="jello-jj-diff-layout" role="group" aria-label="Diff layout">
-                <button type="button" title="Unified diff" aria-label="Unified diff" aria-pressed={layout() === "unified"} onClick={() => setLayout("unified")}><DiffIcon name="unified" /></button>
-                <button type="button" title="Split diff" aria-label="Split diff" aria-pressed={layout() === "split"} onClick={() => setLayout("split")}><DiffIcon name="split" /></button>
+                <button type="button" title="Unified diff (t to toggle)" aria-label="Unified diff" aria-pressed={layout() === "unified"} onClick={() => setLayout("unified")}><DiffIcon name="unified" /></button>
+                <button type="button" title="Split diff (t to toggle)" aria-label="Split diff" aria-pressed={layout() === "split"} onClick={() => setLayout("split")}><DiffIcon name="split" /></button>
               </div>
             </div>
             <PeekContextMenu peek={peek} />
@@ -425,12 +488,12 @@ function DiffContents(props: DiffViewProps & { modelKey: string }) {
               <div class="jello-jj-diff-content"><Show when={file().hunks.length} fallback={<div class="jello-jj-diff-empty">
                 <p>{file().prevName ? `Renamed from ${file().prevName}. ` : ""}No text hunks (binary, rename, empty file, or mode-only change).</p>
                 <Show when={file().prevMode !== file().mode}><p>Mode: {file().prevMode || "none"} → {file().mode || "none"}</p></Show>
-              </div>}><DiffFile file={file()} layout={layout()} wrap={wrap()} screen={props.screen} peek={peek} loadDiffFiles={loadDiffFiles} /></Show></div>
+              </div>}><DiffFile file={file()} layout={layout()} wrap={wrap()} screen={props.screen} peek={peek} loadDiffFiles={loadDiffFiles} registerHunkNavigator={props.registerHunkNavigator} /></Show></div>
             </>}</Show>
             }>
-              <MultiFileDiff files={files()} layout={layout()} wrap={wrap()} selected={selected()} navigation={navigation()} select={setSelected} screen={props.screen} peek={peek} loadDiffFiles={loadDiffFiles} />
+              <MultiFileDiff files={files()} layout={layout()} wrap={wrap()} selected={selected()} navigation={navigation()} select={setSelected} screen={props.screen} peek={peek} loadDiffFiles={loadDiffFiles} registerHunkNavigator={props.registerHunkNavigator} />
             </Show>
-            <CodePeekPanel peek={peek} directory={props.session.directory} />
+            <CodePeekPanel peek={peek} directory={props.session.directory} screen={props.screen} />
           </div>
         </div>
       </Show>

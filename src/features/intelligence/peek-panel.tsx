@@ -1,6 +1,6 @@
 import { createEffect, createUniqueId, on, onCleanup, onMount, Show, type Accessor } from "solid-js"
 import { Portal } from "solid-js/web"
-import { usePlugin } from "@opencode/plugin/gui"
+import { usePlugin, type SessionScreen } from "@opencode/plugin/gui"
 import type { PeekKind, PeekResult } from "./rpc"
 import type { LanguageClient } from "./client"
 import { createFileViewModel } from "./file-model"
@@ -24,11 +24,11 @@ export interface PeekPanelModel {
 }
 
 // A peek is a launch context for a file view, not a separate source renderer.
-export function CodePeekPanel(props: { peek: PeekPanelModel; directory: string; theme?: string }) {
+export function CodePeekPanel(props: { peek: PeekPanelModel; directory: string; theme?: string; screen: SessionScreen }) {
   return <Show when={props.peek.opened()}><PeekModal {...props} /></Show>
 }
 
-function PeekModal(props: { peek: PeekPanelModel; directory: string; theme?: string }) {
+function PeekModal(props: { peek: PeekPanelModel; directory: string; theme?: string; screen: SessionScreen }) {
   const ctx = usePlugin()
   const ui = ctx.ui
   const file = createFileViewModel(props.peek.client, props.peek.fileChanges)
@@ -43,7 +43,8 @@ function PeekModal(props: { peek: PeekPanelModel; directory: string; theme?: str
   const escape = createPeekEscape({
     escape: file.escape,
     close: () => props.peek.close(),
-    inMenu: (event) => event.composedPath().some((node) => node instanceof HTMLElement && node.getAttribute("role") === "menu"),
+    inMenu: (event) => event.composedPath().some((node) => node instanceof HTMLElement
+      && (node.getAttribute("role") === "menu" || node.classList.contains("jello-diff-comment"))),
   })
   const titleID = createUniqueId()
   let modal!: HTMLDialogElement
@@ -99,7 +100,7 @@ function PeekModal(props: { peek: PeekPanelModel; directory: string; theme?: str
       <Show when={props.peek.loading()}><p role="status">Looking up {props.peek.kind()}… First lookup may take a moment while TypeScript loads the project.</p></Show>
       <Show when={props.peek.error()}><p role="alert">{props.peek.error()}</p></Show>
       <Show when={props.peek.result()}>{(result) => <Show when={result().locations.length} fallback={<p role="status">No {props.peek.kind() === "definition" ? "definition" : "references"} found.</p>}>
-        <FileView model={file} directory={props.directory} theme={props.theme} />
+        <FileView model={file} directory={props.directory} theme={props.theme} screen={props.screen} />
       </Show>}</Show>
     </dialog>
   </Portal>

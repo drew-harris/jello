@@ -6,7 +6,7 @@ import { createFileViewModel } from "../../src/features/intelligence/file-model"
 import type { LanguageClient } from "../../src/features/intelligence/client"
 import type { PeekLocation } from "../../src/features/intelligence/rpc"
 import type { FileChangeProvider } from "../../src/features/intelligence/file-changes"
-import type { MountedSession } from "@opencode/plugin/gui"
+import type { Comment, ComposerFile, MountedSession, SessionScreen } from "@opencode/plugin/gui"
 import { createCodePeek } from "../../src/features/jj/diff/intelligence/peek"
 import { openFileClick } from "../../src/features/jj/diff/file-open"
 import "../../src/features/intelligence/style.css"
@@ -62,6 +62,29 @@ async function modalEscapeRegression() {
 
 function Harness() {
   const model = createFileViewModel(client, fileChanges)
+  const [comments, setComments] = createSignal<Comment[]>([])
+  const [focus, setFocus] = createSignal<{ file: string; id: string } | null>(null)
+  const attachments: ComposerFile[] = []
+  const screen = {
+    comment: {
+      list: () => comments(),
+      add: (input: Omit<Comment, "id" | "time">) => {
+        const comment = { ...input, id: crypto.randomUUID(), time: Date.now() }
+        setComments((list) => [...list, comment])
+        return comment
+      },
+      update: (id: string, comment: string) => setComments((list) => list.map((entry) => entry.id === id ? { ...entry, comment } : entry)),
+      remove: (id: string) => setComments((list) => list.filter((entry) => entry.id !== id)),
+      focus: { current: focus, set: setFocus },
+      active: { set: () => {} },
+    },
+    composer: {
+      quotable: () => true,
+      attach: (part: ComposerFile) => attachments.push(part),
+      update: (id: string, patch: Partial<ComposerFile>) => { const part = attachments.find((part) => part.commentID === id); if (part) Object.assign(part, patch) },
+      detach: (id: string) => { const index = attachments.findIndex((part) => part.commentID === id); if (index >= 0) attachments.splice(index, 1) },
+    },
+  } as unknown as SessionScreen
   // Exercise the actual JJ launch model without repository or LSP requests.
   const session = { directory: "/repo", server: { id: "mock", client: { rpc: () => ({
     document: ({ path }: { path: string }, { signal }: { signal: AbortSignal }) => client.document(path, signal),
@@ -71,21 +94,21 @@ function Harness() {
   const [peekOpened, setPeekOpened] = createSignal(false)
   const initial = { locations: [at("/repo/main.ts"), at("/repo/main.ts", 1)], truncated: false }
   onMount(() => { void model.seed({ label: "References: value", locations: [at("/repo/main.ts"), at("/repo/main.ts", 1)], truncated: false }) })
-  Object.assign(window, { fileViewTest: { model, calls, modalEscapeRegression, filePeek } })
+  Object.assign(window, { fileViewTest: { model, calls, modalEscapeRegression, filePeek, comments, attachments } })
   return <main>
     <h1>Read-only file view smoke test</h1>
     <p>Mock LSP, real virtualized renderer. No repository changes or server queries.</p>
     <button type="button" data-testid="open-peek" onClick={() => setPeekOpened(true)}>Open peek modal</button>
     <button type="button" data-testid="open-file" onClick={(event) => openFileClick(event, "main.ts", filePeek.openFile)}>Cmd-click main.ts</button>
-    <CodePeekPanel directory="/repo" peek={{ ...filePeek, fileChanges }} />
-    <CodePeekPanel directory="/repo" peek={{ opened: peekOpened, kind: () => "references", target: () => ({ text: "value" }),
+    <CodePeekPanel directory="/repo" screen={screen} peek={{ ...filePeek, fileChanges }} />
+    <CodePeekPanel directory="/repo" screen={screen} peek={{ opened: peekOpened, kind: () => "references", target: () => ({ text: "value" }),
       result: () => initial, loading: () => false, error: () => "", client, fileChanges,
       open: async () => {}, close: () => setPeekOpened(false), keydown: (event) => {
         if (event.key === "Escape") { event.preventDefault(); setPeekOpened(false) }
       },
     }} />
     <section class="jello-peek" data-mode="light" style={{ height: "620px", "max-height": "none", width: "100%" }}>
-      <FileView model={model} directory="/repo" />
+      <FileView model={model} directory="/repo" screen={screen} />
     </section>
   </main>
 }

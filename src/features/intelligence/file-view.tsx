@@ -1,16 +1,22 @@
 import { createSignal, For, Show } from "solid-js"
-import { usePlugin } from "@opencode/plugin/gui"
+import { usePlugin, type SessionScreen } from "@opencode/plugin/gui"
 import type { FileViewModel } from "./file-model"
 import { FileCode } from "./file-code"
 import { FileQueryMenu } from "./file-query-menu"
 import { navigationQueries, type FileQuery } from "./queries"
 import { codeScrollAmount } from "../../shared/gui/scroll-shortcuts"
+import { codeHunkShortcut, type HunkNavigator, type RegisterHunkNavigator } from "../../shared/gui/hunk-navigation"
 
-export function FileView(props: { model: FileViewModel; directory: string; theme?: string }) {
+export function FileView(props: { model: FileViewModel; directory: string; theme?: string; screen: SessionScreen }) {
   const ctx = usePlugin()
   const ui = ctx.ui
   const model = props.model
   let panel!: HTMLDivElement
+  let navigateHunk: HunkNavigator | undefined
+  const registerHunkNavigator: RegisterHunkNavigator = (navigate) => {
+    navigateHunk = navigate
+    return () => { if (navigateHunk === navigate) navigateHunk = undefined }
+  }
   const [wrap, setWrap] = createSignal(false)
   const [menu, setMenu] = createSignal<{ x: number; y: number }>()
   const path = (value: string) => value.startsWith(`${props.directory}/`) ? value.slice(props.directory.length + 1) : value
@@ -24,7 +30,9 @@ export function FileView(props: { model: FileViewModel; directory: string; theme
   const keydown = (event: KeyboardEvent) => {
     if (event.defaultPrevented || event.isComposing || event.composedPath().some((node) => node instanceof HTMLElement && node.matches("input, textarea, select, [contenteditable=true]"))) return
     let handled = true
-    if (event.key === "F12" && !event.metaKey && !event.ctrlKey && !event.altKey) {
+    const hunk = codeHunkShortcut(event)
+    if (hunk && navigateHunk) navigateHunk(hunk.direction, hunk.smooth)
+    else if (event.key === "F12" && !event.metaKey && !event.ctrlKey && !event.altKey) {
       if (!queryDisabled()) run(event.shiftKey ? "references" : "definition")
     }
     else if (event.key === "K" && event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey && !queryDisabled()) run("hover")
@@ -85,7 +93,7 @@ export function FileView(props: { model: FileViewModel; directory: string; theme
       </nav>}</Show>
       <div class="jello-file-stage">
         <Show when={model.loading()}><p role="status">Loading source file…</p></Show>
-        <Show when={model.document()}><FileCode model={model} theme={props.theme} wrap={wrap()} menu={(x, y) => setMenu({ x, y })} /></Show>
+        <Show when={model.document()}><FileCode model={model} directory={props.directory} screen={props.screen} theme={props.theme} wrap={wrap()} menu={(x, y) => setMenu({ x, y })} registerHunkNavigator={registerHunkNavigator} /></Show>
       </div>
     </div>
     <Show keyed when={menu()}>{(position) => <FileQueryMenu x={position.x} y={position.y} symbol={model.target()?.text ?? "Symbol"}
