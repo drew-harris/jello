@@ -1,20 +1,25 @@
 import { registerCustomTheme } from "@pierre/diffs"
+import { sonokai } from "../../../gui/themes/sonokai"
 
 export function registerDiffThemes() {
   for (const mode of ["dark", "light"] as const) {
-    const dark = mode === "dark"
+    const colors = sonokai[mode].overrides
     registerCustomTheme(`jello-jj-${mode}`, async () => ({
       name: `jello-jj-${mode}`,
       type: mode,
-      colors: { "editor.background": dark ? "#151515" : "#ffffff", "editor.foreground": dark ? "#dddddd" : "#242424" },
+      colors: { "editor.background": colors["background-base"], "editor.foreground": colors["text-base"] },
       tokenColors: [
-        { scope: ["comment", "punctuation.definition.comment"], settings: { foreground: dark ? "#808080" : "#808080" } },
-        { scope: ["keyword", "storage", "entity.name.function", "support.function"], settings: { foreground: dark ? "#e99bc4" : "#a03779" } },
-        { scope: ["string", "markup.inline.raw"], settings: { foreground: dark ? "#a5d6a7" : "#35743a" } },
-        { scope: ["entity.name.type", "support.type", "support.class", "entity.name.tag", "constant.language"], settings: { foreground: dark ? "#b5a5ed" : "#7056aa" } },
-        { scope: ["constant.numeric", "constant.other", "entity.other.attribute-name"], settings: { foreground: dark ? "#e5b583" : "#9b632b" } },
-        { scope: ["punctuation", "meta.brace"], settings: { foreground: dark ? "#939393" : "#707070" } },
-        { scope: ["markup.heading"], settings: { foreground: dark ? "#e99bc4" : "#a03779", fontStyle: "bold" } },
+        { scope: ["comment", "punctuation.definition.comment"], settings: { foreground: colors["syntax-comment"] } },
+        { scope: ["keyword", "storage", "entity.name.tag"], settings: { foreground: colors["syntax-keyword"] } },
+        { scope: ["entity.name.function", "support.function"], settings: { foreground: mode === "dark" ? "#9ed072" : "#002cc4" } },
+        { scope: ["string", "markup.inline.raw"], settings: { foreground: colors["syntax-string"] } },
+        { scope: ["entity.name.type", "support.type"], settings: { foreground: colors["syntax-type"] } },
+        { scope: ["entity.name.type.class", "support.class"], settings: { foreground: colors["syntax-object"] } },
+        { scope: ["constant.numeric", "constant.language"], settings: { foreground: colors["syntax-primitive"] } },
+        { scope: ["constant.other"], settings: { foreground: colors["syntax-constant"] } },
+        { scope: ["variable.other.property", "support.variable.property", "entity.other.attribute-name"], settings: { foreground: colors["syntax-property"] } },
+        { scope: ["punctuation", "meta.brace"], settings: { foreground: mode === "dark" ? sonokai.dark.overrides["syntax-punctuation"] : "#383a42" } },
+        { scope: ["markup.heading"], settings: { foreground: colors["syntax-keyword"], fontStyle: "bold" } },
       ],
     }))
   }
@@ -23,11 +28,11 @@ export function registerDiffThemes() {
 // Static, plugin-owned CSS scoped to Pierre's shadow root (not repository content).
 export function diffThemeCSS(dark: boolean): string {
   return `:host {
-    --diffs-bg: ${dark ? "#151515" : "#ffffff"};
+    --diffs-bg: var(--background-base, ${dark ? "#202020" : "#ffffff"});
     --diffs-bg-context: var(--diffs-bg);
-    --diffs-bg-context-gutter: var(--diffs-bg);
+    --diffs-bg-context-gutter: var(--surface-inset-base, ${dark ? "#1b1b1b" : "#fafafa"});
     --diffs-bg-buffer: var(--diffs-bg);
-    --diffs-bg-separator: ${dark ? "#202020" : "#f3f3f3"};
+    --diffs-bg-separator: var(--surface-raised-base, ${dark ? "#292929" : "#fafafa"});
     --diffs-bg-addition: ${dark ? "#18251b" : "#edf7ee"};
     --diffs-bg-deletion: ${dark ? "#2b1c1c" : "#fceeee"};
     --diffs-bg-addition-number-override: var(--diffs-bg-addition);

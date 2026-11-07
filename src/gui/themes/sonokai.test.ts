@@ -20,6 +20,8 @@ describe("Sonokai theme", () => {
     assert.equal(sonokai.dark.overrides["syntax-property"], "#ef8f62")
     assert.equal(sonokai.dark.overrides["syntax-object"], "#ff00ff")
     assert.equal(sonokai.dark.overrides["border-selected"], "#737373")
+    assert.equal(sonokai.dark.overrides["border-focus"], "#737373")
+    assert.equal(sonokai.dark.v2Overrides["v2-border-border-focus"], "#737373")
   })
 
   test("uses the configured One Light counterpart in light mode", () => {
@@ -37,6 +39,21 @@ describe("Sonokai theme", () => {
     ]) {
       assert.equal(color.slice(1, 3), color.slice(3, 5))
       assert.equal(color.slice(3, 5), color.slice(5, 7))
+    }
+  })
+
+  test("steps from recessed backgrounds through progressively raised panels", () => {
+    const tokens = sonokai.dark.v2Overrides
+    const layers = [
+      tokens["v2-background-bg-deep"],
+      tokens["v2-background-bg-base"],
+      tokens["v2-background-bg-layer-01"],
+      tokens["v2-background-bg-layer-02"],
+      tokens["v2-background-bg-layer-03"],
+      tokens["v2-background-bg-layer-04"],
+    ].map((color) => parseInt(color.slice(1, 3), 16))
+    for (let i = 1; i < layers.length; i++) {
+      assert.ok(layers[i] > layers[i - 1])
     }
   })
 })

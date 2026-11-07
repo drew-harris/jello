@@ -1,27 +1,33 @@
 .jello-jj-diff {
-  --jj-diff-bg: #ffffff;
-  --jj-diff-fg: #242424;
-  --jj-diff-muted: #888888;
-  --jj-diff-border: #e5e5e5;
-  --jj-diff-hover: #f3f3f3;
-  --jj-diff-selected: #eaeaea;
-  --jj-diff-add: #398044;
-  --jj-diff-del: #c54a4a;
-  --jj-diff-mod: #6b7fe3;
+  --jj-diff-bg: var(--background-base, #ffffff);
+  --jj-diff-fg: var(--text-base, #242424);
+  --jj-diff-muted: var(--text-weaker, #888888);
+  --jj-diff-border: var(--border-base, #e5e5e5);
+  --jj-diff-hover: var(--surface-base-hover, #f3f3f3);
+  --jj-diff-selected: var(--surface-base-active, #eaeaea);
+  --jj-diff-add: var(--text-diff-add-base, #398044);
+  --jj-diff-del: var(--text-diff-delete-base, #c54a4a);
+  --jj-diff-mod: var(--text-interactive-base, #6b7fe3);
+  --jj-diff-panel-bg: var(--background-weak, #fafafa);
+  --jj-diff-toolbar-bg: var(--surface-base, #fafafa);
   height: 100%; min-height: 0; overflow: hidden; container-type: inline-size;
   color: var(--jj-diff-fg); background: var(--jj-diff-bg); font-size: 12px;
 }
 .jello-jj-diff[data-mode="dark"] {
-  --jj-diff-bg: #151515;
-  --jj-diff-fg: #dddddd;
-  --jj-diff-muted: #818181;
-  --jj-diff-border: #303030;
-  --jj-diff-hover: #232323;
-  --jj-diff-selected: #303030;
-  --jj-diff-add: #8bd391;
-  --jj-diff-del: #e97878;
-  --jj-diff-mod: #91a0ff;
+  --jj-diff-bg: var(--background-base, #202020);
+  --jj-diff-fg: var(--text-base, #e2e2e2);
+  --jj-diff-muted: var(--text-weaker, #858585);
+  --jj-diff-border: var(--border-base, #3b3b3b);
+  --jj-diff-hover: var(--surface-base-hover, #303030);
+  --jj-diff-selected: var(--surface-base-active, #363636);
+  --jj-diff-add: var(--text-diff-add-base, #9ed072);
+  --jj-diff-del: var(--text-diff-delete-base, #fc5d7c);
+  --jj-diff-mod: var(--text-interactive-base, #76cce0);
+  --jj-diff-panel-bg: var(--background-weak, #191919);
+  --jj-diff-toolbar-bg: var(--surface-base, #242424);
 }
+.jello-jj-diff-sidebar { background: var(--jj-diff-panel-bg); }
+.jello-jj-diff-revision, .jello-jj-diff-toolbar { background: var(--jj-diff-toolbar-bg); }
 /* These are read-only keyboard/scroll sinks, not interactive controls. Their
    large browser outlines get clipped by the diff's nested overflow regions. */
 .jello-jj-diff:focus, .jello-jj-diff:focus-visible,
