@@ -109,7 +109,7 @@ export const sonokai = {
       "syntax-constant": "#b39df3",
       "syntax-operator": "#fc5d7c",
       "syntax-punctuation": "#7f8490",
-      "syntax-object": "#ff00ff",
+      "syntax-object": "#76cce0",
     },
     v2Overrides: {
       "v2-background-bg-base": "#202020",

@@ -18,7 +18,7 @@ describe("Sonokai theme", () => {
     assert.equal(sonokai.dark.overrides["background-base"], "#202020")
     assert.equal(sonokai.dark.v2Overrides["v2-background-bg-base"], "#202020")
     assert.equal(sonokai.dark.overrides["syntax-property"], "#ef8f62")
-    assert.equal(sonokai.dark.overrides["syntax-object"], "#ff00ff")
+    assert.equal(sonokai.dark.overrides["syntax-object"], "#76cce0")
     assert.equal(sonokai.dark.overrides["border-selected"], "#737373")
     assert.equal(sonokai.dark.overrides["border-focus"], "#737373")
     assert.equal(sonokai.dark.v2Overrides["v2-border-border-focus"], "#737373")

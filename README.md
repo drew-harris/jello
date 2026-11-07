@@ -7,8 +7,8 @@ Jello: an OpenCode Desktop GUI plugin.
 Choose **Sonokai** under **Settings > Appearance > Theme** (requires OpenCode
 2.2.6 or newer). Jello registers it without changing your current theme.
 The dark variant adapts [Zed Sonokai](https://github.com/ciathefed/zed-sonokai)
-with the custom charcoal surfaces, orange properties, and magenta class/object
-color from Drew's dotfiles. The light variant follows the configured One Light
+with custom charcoal surfaces and orange properties from Drew's dotfiles,
+plus softer cyan class/object colors. The light variant follows the configured One Light
 counterpart. Zed-only features (cursor, selection, search highlights, terminal
 ANSI overrides, and syntax font styles) aren't mapped to unsupported theme tokens.
 
