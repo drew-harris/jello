@@ -63,7 +63,7 @@ test("tree distinguishes moved local bookmarks from remote positions and collaps
     await jj(["git", "remote", "add", "origin", remote])
     await jj(["describe", "-m", "Published"])
     await jj(["bookmark", "create", "main"])
-    await jj(["git", "push", "--remote", "origin", "--bookmark", "main", "--allow-new"])
+    await jj(["git", "push", "--remote", "origin", "--bookmark", "main"])
     const published = await jj(["log", "--no-graph", "-r", "main", "-T", "commit_id"])
     const synced = await readTree(directory, 20)
     assert.deepEqual(synced.commits.find((c) => c.commitID === published)?.bookmarkLabels, ["main"])

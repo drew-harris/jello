@@ -14,6 +14,25 @@ ANSI overrides, and syntax font styles) aren't mapped to unsupported theme token
 
 ## JJ feature
 
+### JJ workspaces / OpenCode worktrees
+
+Jello registers a JJ worktree adapter automatically in JJ projects. OpenCode's
+normal worktree create/list/refresh/remove flow then manages real **JJ workspaces**
+instead of Git-only checkouts. Requires JJ **0.47.1+** on the server. Ordinary Git
+projects keep their existing adapter.
+
+New workspaces default to a fresh child of the source's current change, including
+its snapshotted edits, without moving or creating bookmarks. Sparse patterns are
+copied, and colocation is enabled for native project discovery. The host still
+owns destination naming and `worktree.directory`.
+
+Configuration, safety rules, and large/unusual-repo options are documented in
+[JJ worktrees](docs/jj-worktrees.md). Set Jello's plugin option
+`"jjWorktrees": false` to opt out. Existing worktrees retain their recorded owner;
+enabling Jello does not automatically take ownership from Git.
+
+### JJ Tree
+
 Press **⌘⇧J** to open JJ Tree and focus it for keyboard navigation (even if it is
 already open). This app-wide shortcut also works from text fields and is
 customizable under **Settings > Shortcuts**.

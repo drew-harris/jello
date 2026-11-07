@@ -6,8 +6,8 @@ export function validateCommitID(id: string, message = "Expected a full commit I
 
 // Snapshot policy stays explicit at the call site: never silently snapshot a
 // historical read. Put global flags before `--` so filenames stay literal.
-export function runJJ(args: string[], options: CommandOptions) {
-  return runCommand("jj", ["--color=never", "--no-pager", ...args], {
+export function runJJ(args: string[], options: CommandOptions, command = "jj") {
+  return runCommand(command, ["--color=never", "--no-pager", ...args], {
     ...options, env: { ...process.env, JJ_EDITOR: "false", ...options.env },
   })
 }
