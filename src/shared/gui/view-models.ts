@@ -1,8 +1,7 @@
 import { createRoot, getOwner, onCleanup, type Owner } from "solid-js"
-import { repositoryKey } from "../repository"
 
 // Models belong to the plugin window, not the component acquiring them. Only
-// unused models can be evicted; disposing one also aborts its createLatest work.
+// unused models can be evicted. Remote data is owned separately by Solid Query.
 export class ViewModels<T> {
   private readonly owner: Owner | null = getOwner()
   private readonly entries = new Map<string, { value: T; dispose(): void; users: number }>()
@@ -24,15 +23,6 @@ export class ViewModels<T> {
     return entry
   }
 
-  // Start work during an explicit navigation intent, before the panel mounts.
-  // Preparation happens before trimming, so a cancelled preload cannot launch
-  // new work from an already-disposed root. Active models are never evicted.
-  preload(key: string, create: () => T, prepare: (value: T) => void): void {
-    const entry = this.acquire(key, create)
-    prepare(entry.value)
-    this.trim()
-  }
-
   use(key: string, create: () => T): T {
     const entry = this.acquire(key, create)
     entry.users++
@@ -51,5 +41,3 @@ export class ViewModels<T> {
     }
   }
 }
-
-export const repositoryViewKey = (server: string, directory: string) => repositoryKey({ server, directory })

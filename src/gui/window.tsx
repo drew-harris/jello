@@ -6,11 +6,14 @@ import { SettingsView } from "./settings"
 import css from "./style.css?inline"
 import { createRepositoryServices, RepositoryServices } from "../shared/gui/repository"
 import { setupIntelligence } from "../features/intelligence/gui"
+import { onCleanup } from "solid-js"
 
 // Shared Jello window setup. Each feature registers its own contributions.
 export const setup: Plugin.Setup<typeof definition> = (ctx) => {
   ctx.add(Theme, sonokai)
-  ctx.provide(RepositoryServices, createRepositoryServices())
+  const repositories = createRepositoryServices()
+  ctx.provide(RepositoryServices, repositories)
+  onCleanup(repositories.queries.dispose)
   setupIntelligence(ctx)
   ctx.add(Style, css)
   setupJJ(ctx)

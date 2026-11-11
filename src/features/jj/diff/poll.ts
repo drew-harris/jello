@@ -1,4 +1,4 @@
-import { pollDelay } from "../../../shared/gui/resource"
+import { pollDelay } from "../../../shared/gui/query"
 
 export const DIFF_POLL_INTERVAL = 3_000
 

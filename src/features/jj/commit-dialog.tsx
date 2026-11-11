@@ -9,7 +9,6 @@ export function CommitDialog(props: {
   commit(message: string): Promise<void>
   loadFiles(): Promise<ChangedFile[]>
   close(): void
-  onCommitted(): void
 }) {
   const ctx = usePlugin()
   const ui = ctx.ui
@@ -28,7 +27,6 @@ export function CommitDialog(props: {
     if (busy() || !message().trim()) return
     await action.run(async () => {
       await props.commit(message().trim())
-      props.onCommitted()
       props.close()
     }, { success: "Committed; new working copy created" })
   }

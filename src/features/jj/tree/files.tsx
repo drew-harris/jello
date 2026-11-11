@@ -1,14 +1,15 @@
-import { createEffect, createMemo, For, Show } from "solid-js"
+import { For, Show } from "solid-js"
+import { useQuery } from "@tanstack/solid-query"
 import { usePlugin, type MountedSession } from "@opencode/plugin/gui"
 import { errorMessage } from "../../../shared/errors"
 import type { ChangedFile } from "../changed-files"
 import { openRevisionDiff } from "../diff/navigation"
-import { repositoryViewKey, type ViewModels } from "../../../shared/gui/view-models"
-import { createRevisionFilesModel, type RevisionFilesModel } from "./state"
+import { repositoryServices, sessionRepository } from "../../../shared/gui/repository"
+import { queryData } from "../../../shared/gui/query"
+import { revisionFilesQuery } from "../queries"
 
 interface RevisionFilesProps {
   session: MountedSession
-  models: ViewModels<RevisionFilesModel>
   commitID: string
   changeID: string
   divergent: boolean
@@ -17,18 +18,16 @@ interface RevisionFilesProps {
 export function RevisionFiles(props: RevisionFilesProps) {
   const ctx = usePlugin()
   const ui = ctx.ui
-  const model = createMemo(() => props.models.use(
-    JSON.stringify([repositoryViewKey(props.session.server.id, props.session.directory), props.commitID]),
-    () => createRevisionFilesModel(props.session.directory, props.commitID)))
-  createEffect(() => model().configure(props.session.server.client))
-  const files = () => model().files.latest
-  const refetch = () => model().refresh()
+  const { client } = repositoryServices(ctx).queries
+  const query = useQuery(() => revisionFilesQuery(client, sessionRepository(props.session), props.session.server.client, props.commitID), () => client)
+  const files = () => queryData(query)
+  const refetch = () => void query.refetch({ cancelRefetch: false })
   const kind = (file: ChangedFile) => file.status === "removed" ? "D" : file.status.slice(0, 1).toUpperCase()
   return <div class="jello-jj-tree-files" role="region" aria-label="Changed files">
-    <Show when={model().files.error}>
-      <div class="jello-jj-tree-files-state" role="alert"><span>{errorMessage(model().files.error)}</span><button type="button" onClick={refetch}>Retry</button></div>
+    <Show when={query.error}>
+      <div class="jello-jj-tree-files-state" role="alert"><span>{errorMessage(query.error)}</span><button type="button" onClick={refetch}>Retry</button></div>
     </Show>
-    <Show when={files()} fallback={<Show when={!model().files.error}><div class="jello-jj-tree-files-state" role="status">Loading files…</div></Show>}>
+    <Show when={files()} fallback={<Show when={!query.error}><div class="jello-jj-tree-files-state" role="status">Loading files…</div></Show>}>
       <div class="jello-jj-tree-files-heading">{files()?.length} changed {files()?.length === 1 ? "file" : "files"}</div>
       <Show when={files()?.length} fallback={<div class="jello-jj-tree-files-state">No file changes</div>}>
         <ul><For each={files()}>{(file) => <li><button type="button" class="jello-jj-tree-file-link"

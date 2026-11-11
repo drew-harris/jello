@@ -5,34 +5,34 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { promisify } from "node:util"
 import { test } from "node:test"
-import { createEffect, createRoot } from "solid-js"
-import { isServer } from "solid-js/web"
+import { QueryObserver, type QueryObserverResult } from "@tanstack/solid-query"
+import { createRoot } from "solid-js"
 import type { Plugin } from "@opencode/plugin"
 import type { MountedSession } from "@opencode/plugin/gui"
-import { RepositoryEvents } from "../../shared/repository"
-import { createAsyncAction } from "../../shared/gui/async-action"
-import { createHistoryModel } from "./tree/state"
-import { createStatusModel } from "./status-model"
+import { createWindowQueries } from "../../shared/gui/query"
 import { createDiffModel } from "./diff/state"
 import { diffTabID } from "./diff/tab"
 import { setupJJ } from "./server"
-import { JJ_CHANGED } from "./invalidation"
+import { diffQuery, historyQuery, overviewQuery } from "./queries"
+import { createJJMutations } from "./mutations"
 
 const execute = promisify(execFile)
-type Result = { readonly loading: boolean; readonly error: unknown }
-const settled = (result: Result) => new Promise<void>((resolve, reject) => {
-  createRoot((dispose) => createEffect(() => {
-    if (result.loading) return
-    const error = result.error
-    dispose()
-    if (error) reject(error)
+const settled = <T>(observer: QueryObserver<T, unknown>) => new Promise<void>((resolve, reject) => {
+  let unsubscribe = () => {}
+  const check = (result: QueryObserverResult<T, unknown>) => {
+    if (result.isFetching || result.isPending) return
+    unsubscribe()
+    if (result.error) reject(result.error)
     else resolve()
-  }))
+  }
+  unsubscribe = observer.subscribe(check)
+  check(observer.getCurrentResult())
 })
 
-test("a real commit invalidates tree/status/diff together without losing cached diff navigation", { skip: isServer, timeout: 30_000 }, async () => {
+test("a real commit refreshes tree/status/diff once through centralized mutation policy without losing diff identity", { timeout: 30_000 }, async () => {
   await mkdir(join(tmpdir(), "opencode"), { recursive: true })
-  const directory = await mkdtemp(join(tmpdir(), "opencode", "jello-resources-"))
+  const directory = await mkdtemp(join(tmpdir(), "opencode", "jello-queries-"))
+  const queries = createWindowQueries()
   let dispose = () => {}
   const unsubscribes: Array<() => void> = []
   try {
@@ -49,53 +49,40 @@ test("a real commit invalidates tree/status/diff together without losing cached 
       return handler(input, { signal: options?.signal ?? new AbortController().signal })
     }]))
     const client = { rpc: () => methods } as unknown as MountedSession["server"]["client"]
-    const models = createRoot((cleanup) => {
-      dispose = cleanup
-      return { history: createHistoryModel(directory), status: createStatusModel(directory) }
-    })
-    models.history.configure(client, 100, 0)
-    await settled(models.history.result)
-    models.status.configure(client)
-    await settled(models.status.result)
-    const current = models.history.history.latest!.commits.find((commit) => commit.current)!
-    let disposeDiff = () => {}
-    const diff = createRoot((cleanup) => {
-      disposeDiff = cleanup
-      return createDiffModel(diffTabID({ directory, changeID: current.changeID }))
-    })
-    unsubscribes.push(disposeDiff)
-    diff.configure(client)
-    await settled(diff.result)
-    diff.setQuery("example")
-    diff.setSidebarWidth(320)
-    const files = diff.result.latest!.files
-    const events = new RepositoryEvents()
     const repository = { server: "remote", directory }
-    for (const model of [models.history, models.status, diff]) {
-      unsubscribes.push(events.subscribe(repository, JJ_CHANGED, model.invalidate))
-    }
-    const action = createAsyncAction()
-    await action.run(async () => { await methods.commit({ directory, message: "Keep behavior" }) }, {
-      rethrow: true,
-      onSuccess() {
-        events.invalidate(repository, JJ_CHANGED)
-        events.invalidate(repository, JJ_CHANGED)
-      },
-    })
-    await Promise.all([settled(models.history.result), settled(models.status.result), settled(diff.result)])
+    const history = new QueryObserver(queries.client, historyQuery(queries.client, repository, client, 100))
+    unsubscribes.push(history.subscribe(() => {}))
+    await settled(history)
+    const status = new QueryObserver(queries.client, overviewQuery(queries.client, repository, client))
+    unsubscribes.push(status.subscribe(() => {}))
+    await settled(status)
+    const current = history.getCurrentResult().data!.commits.find((commit) => commit.current)!
+    const id = diffTabID({ directory, changeID: current.changeID })
+    const diff = new QueryObserver(queries.client, diffQuery(queries.client, repository, client, id))
+    unsubscribes.push(diff.subscribe(() => {}))
+    await settled(diff)
+    const navigation = createRoot((cleanup) => { dispose = cleanup; return createDiffModel(id) })
+    navigation.selectPath("example.ts")
+    navigation.setQuery("example")
+    navigation.setSidebarWidth(320)
+    const files = diff.getCurrentResult().data!.files
+    await createJJMutations(queries, repository, client).commit("Keep behavior")
+    await Promise.all([settled(history), settled(status), settled(diff)])
     assert.equal(calls.tree, 2)
     assert.equal(calls.overview, 2)
     assert.equal(calls.diff, 2)
-    assert.equal(models.status.result.latest!.revisions.find((revision) => revision.current)!.empty, true)
-    assert.equal(models.history.result.latest!.commits.find((commit) => commit.current)!.empty, true)
-    assert.equal(diff.result.latest!.data.revision.current, false, "committing must stop following the old working copy")
-    assert.equal(diff.result.latest!.data.revision.description.trim(), "Keep behavior")
-    assert.equal(diff.result.latest!.files, files, "an unchanged immutable patch retains renderer identities")
-    assert.equal(diff.query(), "example")
-    assert.equal(diff.sidebarWidth(), 320)
+    assert.equal(status.getCurrentResult().data!.revisions.find((revision) => revision.current)!.empty, true)
+    assert.equal(history.getCurrentResult().data!.commits.find((commit) => commit.current)!.empty, true)
+    assert.equal(diff.getCurrentResult().data!.data.revision.current, false)
+    assert.equal(diff.getCurrentResult().data!.data.revision.description.trim(), "Keep behavior")
+    assert.equal(diff.getCurrentResult().data!.files, files)
+    assert.equal(navigation.path(), "example.ts")
+    assert.equal(navigation.query(), "example")
+    assert.equal(navigation.sidebarWidth(), 320)
   } finally {
     unsubscribes.forEach((unsubscribe) => unsubscribe())
     dispose()
+    queries.dispose()
     await rm(directory, { recursive: true, force: true })
   }
 })

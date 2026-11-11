@@ -2,7 +2,8 @@ import { FileDiff, type FileDiffContentsLoader, type FileDiffMetadata } from "@p
 import { batch, createEffect, createMemo, createSignal, ErrorBoundary, For, on, onCleanup, onMount, Show, Suspense } from "solid-js"
 import { usePlugin, type MountedSession, type SessionScreen } from "@opencode/plugin/gui"
 import type { RevisionDiff } from "./server"
-import { parseDiffTabID, type DiffTabRevision } from "./tab"
+import { diffFileIndex, parseDiffTabID, type DiffTabRevision } from "./tab"
+import { useQuery } from "@tanstack/solid-query"
 import { errorMessage } from "../../../shared/errors"
 import { buildFileTree, type FileTreeNode } from "./tree"
 import { DiffIcon, FileIcon } from "./icons"
@@ -24,8 +25,9 @@ import { createDiffContextLoader } from "./context"
 import { Status } from "../rpc"
 import { rendererDiffFiles } from "./files"
 import { openFileClick } from "./file-open"
-import { createPolling } from "../../../shared/gui/poll"
-import { observeRepository, repositoryServices } from "../../../shared/gui/repository"
+import { createViewVisibility, queryData } from "../../../shared/gui/query"
+import { repositoryServices } from "../../../shared/gui/repository"
+import { diffQuery } from "../queries"
 
 const fileKind = (file: FileDiffMetadata) => ({ new: "A", deleted: "D", "rename-pure": "R", "rename-changed": "R", change: "M" })[file.type]
 const count = (file: FileDiffMetadata, kind: "additionLines" | "deletionLines") => file.hunks.reduce((total, hunk) => total + hunk[kind], 0)
@@ -288,9 +290,11 @@ function DiffContents(props: DiffViewProps & { modelKey: string; registerHunkNav
   const setWrap = (value: boolean) => preferences.update((draft) => { draft.wrap = value })
   const sidebar = () => preferences.value.sidebar
   const setSidebar = (value: boolean) => preferences.update((draft) => { draft.sidebar = value })
-  const { sidebarWidth, setSidebarWidth, selected, setSelected, query, setQuery } = model
+  const { sidebarWidth, setSidebarWidth, query, setQuery } = model
+  const setSelected = (index: number) => model.selectPath(files()[index]?.name)
   const [resizing, setResizing] = createSignal(false)
   let workspace!: HTMLDivElement
+  let stage!: HTMLDivElement
   let sidebarElement!: HTMLElement
   let drag: { pointerID: number; x: number; width: number } | undefined
   const resizeSidebar = (width: number) => {
@@ -305,12 +309,14 @@ function DiffContents(props: DiffViewProps & { modelKey: string; registerHunkNav
   const [now, setNow] = createSignal(Date.now())
   const clock = setInterval(() => setNow(Date.now()), 60_000)
   onCleanup(() => clearInterval(clock))
-  // createLatest never suspends and retains the last successful result. Both
-  // the request and navigation signals outlive this mounted panel.
-  const loading = () => model.result.loading
+  const { client } = repositoryServices(ctx).queries
+  const repository = { server: props.session.server.id, directory: parseDiffTabID(props.tabID)!.directory }
+  const visible = createViewVisibility(() => stage)
+  const remote = useQuery(() => ({ ...diffQuery(client, repository, props.session.server.client, props.tabID), enabled: visible() }), () => client)
+  const loading = () => remote.isFetching
   const result = createMemo<DiffResult | undefined>(() => {
-    const latest = model.result.latest
-    const error = model.result.error ? errorMessage(model.result.error) : ""
+    const latest = queryData(remote)
+    const error = remote.error ? errorMessage(remote.error) : ""
     if (!latest && !error) return undefined
     return { id: props.tabID, data: latest?.data, files: latest?.files ?? [],
       error: latest ? undefined : error, refreshError: latest ? error : "" }
@@ -323,10 +329,9 @@ function DiffContents(props: DiffViewProps & { modelKey: string; registerHunkNav
       onCleanup(() => clearTimeout(timer))
     }
   }))
-  const refetch = model.refresh
-  createEffect(() => model.configure(props.session.server.client))
+  const refetch = () => void remote.refetch({ cancelRefetch: false })
   createEffect(() => {
-    const revision = model.result.latest?.data.revision
+    const revision = queryData(remote)?.data.revision
     if (revision) props.onRevision?.(props.tabID, revision)
   })
   createEffect(on([() => props.tabID, () => props.focusRevision, () => props.requestedFile], () => {
@@ -339,15 +344,14 @@ function DiffContents(props: DiffViewProps & { modelKey: string; registerHunkNav
   }))
   const active = () => result()?.id === props.tabID ? result() : undefined
   const files = createMemo(() => rendererDiffFiles(active()?.files ?? []))
-  const visible = () => !document.hidden && !!workspace?.isConnected && !!workspace.getClientRects().length
-  const { refresh } = createPolling({ loading, enabled: () => !!active()?.data?.revision.current, visible,
-    lastFinished: model.lastFinished, delay: model.nextDelay, stale: model.stale, refresh: refetch })
-  observeRepository(repositoryServices(ctx).events,
-    { server: props.session.server.id, directory: parseDiffTabID(props.tabID)!.directory },
-    ["jj.history", "jj.working-copy", "jj.bookmarks"], () => model.invalidate({ defer: !visible() }))
+  const selected = createMemo(() => diffFileIndex(files(), model.path()))
+  createEffect(() => {
+    if (model.path() === undefined && files().length) model.selectPath(files()[0]!.name)
+  })
+  const refresh = () => { if (visible()) refetch() }
   createEffect(on(() => props.focusRevision, () => {
     // The host makes a cached tab visible after its focus callback.
-    const frame = requestAnimationFrame(() => refresh(!active()?.data?.revision.current))
+    const frame = requestAnimationFrame(() => refresh())
     onCleanup(() => cancelAnimationFrame(frame))
   }))
   const file = () => files()[selected()]
@@ -375,7 +379,7 @@ function DiffContents(props: DiffViewProps & { modelKey: string; registerHunkNav
   const tree = createMemo(() => buildFileTree(files(), query()))
   const totals = createMemo(() => files().reduce((total, file) => ({ added: total.added + count(file, "additionLines"), deleted: total.deleted + count(file, "deletionLines") }), { added: 0, deleted: 0 }))
 
-  return <div class="jello-jj-diff-stage" aria-busy={loading()}>
+  return <div ref={stage} class="jello-jj-diff-stage" aria-busy={loading()}>
     <Show when={active()?.data || !loading()} fallback={<div class="jello-jj-diff-empty" role="status">Loading revision diff…</div>}>
       <Show when={!active()?.error} fallback={<div class="jello-jj-diff-empty" role="alert"><p>{active()?.error}</p><button type="button" onClick={() => void refetch()}>Retry</button></div>}>
         <header class="jello-jj-diff-revision" aria-label="Revision details">
@@ -411,7 +415,7 @@ function DiffContents(props: DiffViewProps & { modelKey: string; registerHunkNav
           <div class="jello-jj-diff-commit-message">{active()?.data?.revision.description || "No description"}</div>
         </header>
         <Show when={active()?.refreshError}><div class="jello-jj-diff-refresh-error" role="alert">
-          Could not refresh: {active()?.refreshError} <button type="button" disabled={loading()} onClick={() => refresh(true)}>Retry</button>
+          Could not refresh: {active()?.refreshError} <button type="button" disabled={loading()} onClick={refresh}>Retry</button>
         </div></Show>
         <div class="jello-jj-diff-workspace" ref={workspace} classList={{ "is-resizing": resizing() }}>
           <Show when={sidebar()}>

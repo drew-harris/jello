@@ -4,23 +4,16 @@ import type { definition } from "../../gui/definition"
 import { PanelView } from "./panel"
 import { StatusBar } from "./status-bar"
 import { CommitDialog } from "./commit-dialog"
-import { Status } from "./rpc"
 import { setupDiff } from "./diff/gui"
 import css from "./style.css?inline"
 import treeCSS from "./tree/style.css?inline"
-import type { ChangedFile } from "./changed-files"
-import { repositoryViewKey, ViewModels } from "../../shared/gui/view-models"
-import { createHistoryModel, type HistoryModel, type RevisionFilesModel } from "./tree/state"
 import { repositoryServices, sessionRepository } from "../../shared/gui/repository"
-import { JJ_CHANGED } from "./invalidation"
-import type { StatusModel } from "./status-model"
+import { changedFilesQuery, historyQuery, positionsQuery } from "./queries"
+import { createJJMutations } from "./mutations"
 
 // All JJ window contributions live here; the Jello shell only composes features.
 export const setupJJ: Plugin.Setup<typeof definition> = (ctx) => {
   setupDiff(ctx)
-  const historyModels = new ViewModels<HistoryModel>()
-  const filesModels = new ViewModels<RevisionFilesModel>(100)
-  const statusModels = new ViewModels<StatusModel>()
   const repositories = repositoryServices(ctx)
   const key = `${ctx.id}:jj`
   const [focusRequest, setFocusRequest] = createSignal(0)
@@ -29,10 +22,9 @@ export const setupJJ: Plugin.Setup<typeof definition> = (ctx) => {
     if (!session) return
     const saved = ctx.stores.jjTree(session).value
     const limit = saved?.directory === session.directory ? saved.limit : 100
-    historyModels.preload(repositoryViewKey(session.server.id, session.directory), () => createHistoryModel(session.directory), (model) => {
-      model.configure(session.server.client, limit, 0)
-      if (model.history.latest || model.history.error) model.refresh()
-    })
+    const repository = sessionRepository(session)
+    void repositories.queries.client.prefetchQuery(historyQuery(repositories.queries.client, repository, session.server.client, limit))
+    void repositories.queries.client.prefetchQuery(positionsQuery(repositories.queries.client, repository, session.server.client))
     ctx.layout.open(key, session)
     setFocusRequest((value) => value + 1)
   }
@@ -50,15 +42,15 @@ export const setupJJ: Plugin.Setup<typeof definition> = (ctx) => {
       const directory = session.directory
       const client = session.server.client
       const repository = sessionRepository(session)
+      const mutations = createJJMutations(repositories.queries, repository, client)
       ctx.dialogs.open((dialog) => <CommitDialog
         directory={directory}
         close={dialog.close}
-        onCommitted={() => repositories.events.invalidate(repository, JJ_CHANGED)}
         commit={async (message) => {
           const release = repositories.gate(repository).acquire()
-          try { await client.rpc(Status).commit({ directory, message }) } finally { release() }
+          try { await mutations.commit(message) } finally { release() }
         }}
-        loadFiles={async () => await client.rpc(Status).changedFiles({ directory }) as ChangedFile[]}
+        loadFiles={() => repositories.queries.client.fetchQuery(changedFilesQuery(repository, client))}
       />)
     },
   }))
@@ -67,7 +59,7 @@ export const setupJJ: Plugin.Setup<typeof definition> = (ctx) => {
   ctx.add(Style, treeCSS)
   ctx.add(Slot, {
     at: "window.bottom",
-    render: () => <Show when={ctx.stores.prefs.value.showStatusBar}><StatusBar models={statusModels} /></Show>,
+    render: () => <Show when={ctx.stores.prefs.value.showStatusBar}><StatusBar /></Show>,
   })
   ctx.add(Command, {
     id: "jj.status.toggle",
@@ -97,7 +89,7 @@ export const setupJJ: Plugin.Setup<typeof definition> = (ctx) => {
       icon: "extensions",
     },
     list: (input) => input.open.includes("jj") ? [tab] : [],
-    render: (props) => <PanelView session={props.session} models={historyModels} filesModels={filesModels} focusRequest={focusRequest()} />,
+    render: (props) => <PanelView session={props.session} focusRequest={focusRequest()} />,
     enter: () => setFocusRequest((value) => value + 1),
   })
   ctx.add(Command, (): Command => ({

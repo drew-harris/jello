@@ -14,7 +14,7 @@ index 1111111..${hash} 100644
 `
 const parse = (patch: string, key: string) => parsePatchFiles(patch, key, true).flatMap((patch) => patch.files)
 
-test("renderer metadata stays writable after passing through the createLatest store", () => {
+test("renderer metadata stays writable after passing through a Solid store", () => {
   const files = parse(patch("a.txt", "after", "aaaaaaa"), "store")
   const [state] = createStore({ latest: { files } })
   const rendered = rendererDiffFiles(state.latest.files)

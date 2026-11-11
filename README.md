@@ -280,8 +280,11 @@ server and GUI setup functions from `src/index.ts` and `src/gui/window.tsx`.
 Feature IDs and CSS are namespaced so they do not collide with other Jello
 features. UI text is plain English inline; there is no internationalization layer.
 
-Reusable async resources, model caching/preloading, repository invalidation,
-mutation actions, menu behavior, and command execution live in `src/shared/`.
+Remote repository data uses a window-owned TanStack Solid Query cache; local UI
+state stays in Solid signals/stores. JJ query definitions and centralized mutation
+invalidation live in `src/features/jj/queries.ts` and `mutations.ts`. Shared query
+lifecycle/backoff, UI-state caching, mutation feedback, menus, and command execution
+live in `src/shared/`.
 Workspace language intelligence and reusable peek UI live in
 `src/features/intelligence/`; JJ's token/side adapters stay inside JJ Diff.
 See [Shared feature primitives](docs/architecture.md) for boundaries, lifetimes,

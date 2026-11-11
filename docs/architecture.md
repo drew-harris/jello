@@ -2,17 +2,18 @@
 
 Features still register ordinary server and GUI setup functions. There is no
 feature registry or generic Git/JJ layer. JJ owns its commands, revision identity,
-graph, patch caching, mutation rules, and dependency tags.
+graph, query keys, patch caching, and mutation rules.
 
 ## Layout
 
 | Module | Responsibility |
 | --- | --- |
-| `src/shared/gui/view-models.ts` | Window-owned, reference-counted model cache; unused-model eviction and explicit navigation preloading |
-| `src/shared/gui/resource.ts` | SDK `createLatest` resources, configuration deduplication, retained data, cancellation, coalesced invalidation, completion timing and backoff |
-| `src/shared/gui/poll.ts` | Visibility/focus-aware refresh scheduling; no overlapping reads, no queued interval ticks |
-| `src/shared/repository.ts` | Server/directory identity and batched, tag-based invalidation |
-| `src/shared/gui/repository.ts` | Window-provided repository event bus and mutation gates |
+| `src/shared/gui/query.ts` | Window-owned Solid Query client, completion-aware polling/backoff, visibility, and batched non-cancelling invalidation |
+| `src/features/jj/queries.ts` | JJ query keys and read options shared by observers, dialog reads, and prefetching |
+| `src/features/jj/mutations.ts` | JJ writes and their centralized success-invalidation policy |
+| `src/shared/gui/view-models.ts` | Reference-counted cache for Solid-only diff navigation state, not remote data |
+| `src/shared/repository.ts` | Server/directory identity |
+| `src/shared/gui/repository.ts` | Window-provided query services and local mutation gates |
 | `src/shared/gui/async-action.ts` | Submission guards, pending/error state, optional progress/success/error toasts and guaranteed cleanup |
 | `src/shared/gui/action.ts` | An action's presentation, availability reason and guarded invocation shared by menus and shortcuts |
 | `src/shared/gui/context-menu.ts` | Placement, focus, dismissal, shadow-DOM-safe outside clicks and menu keyboard handling |
@@ -20,27 +21,43 @@ graph, patch caching, mutation rules, and dependency tags.
 | `src/shared/server/async-cache.ts` | Bounded TTL/single-flight cache; a cancelled waiter cannot abort other readers |
 | `src/features/intelligence/` | Workspace LSP backend/RPC, restart action, symbol menu and reusable peek/source-preview UI |
 
-## Resource lifetimes
+## Query and UI-state lifetimes
 
-Create a `ViewModels` cache in GUI setup, then acquire a model with `use()` inside
-a component. The model's reactive root belongs to the window, not to the first
-component using it. Unmounting a view releases its reference but preserves data
-and navigation; eviction or window cleanup disposes the model and aborts its work.
+GUI setup creates one `@tanstack/solid-query` client for the plugin window and
+disposes it on unload. Contributions are separate host render roots, so pass this
+client explicitly to `useQuery` instead of relying on a provider above the host.
 
-Keep polling and event subscriptions in the mounted view. A resource accepts an
-input through `configure()`, exposing its SDK state as `result.latest`,
-`result.loading`, and `result.error`. A failed refresh retains the last successful
-data. Forward its `AbortSignal` to RPC calls.
+JJ keys include server ID, workspace directory, read kind, and its parameters.
+History limits and revision targets cannot collide; different conversations in
+the same workspace share remote data. The server does not yet expose canonical
+store/workspace IDs to these reads, so aliases and sibling workspaces are not
+merged. Immutable revision-file lists use a separate prefix and infinite
+freshness; mutations do not invalidate them. Moving-change diffs still resolve
+their latest commit, retaining parsed file identities for unchanged content.
 
-`refresh()` ignores overlapping requests. `invalidate()` remembers an invalidation
-during a request and performs one follow-up read. Hidden views use
-`invalidate({ defer: true })` to mark data stale without running expensive remote
-commands. Pass the model's `stale` accessor to `createPolling`; focus/visibility
-or a panel's existing activation callback can then refresh it. A background
-failure uses the completion-based delay/backoff rather than hammering the server.
+Use the options in `queries.ts` for both `useQuery` and `prefetchQuery`/`fetchQuery`.
+Query owns deduplication, cached data, errors, cancellation and five-minute unused
+query garbage collection. Removing the last observer cancels its consumed RPC
+signal; successful results survive remounts. Unload cancels all work and clears
+the cache. `queryData()` avoids suspending on an initial pending result; failed
+background refreshes retain the previous data and show an inline error.
 
-Use `preload()` only for explicit navigation intent. JJ Tree starts its request
-before opening the panel, using the session's saved history limit.
+Polling uses Query's interval and focus policies, with a small remote-repository
+policy: intervals stop during requests and restart from completion, slow reads
+increase the delay, and failures add exponential backoff. Automatic retries are
+disabled. Manual refresh uses `cancelRefetch: false`, so it cannot restart an
+expensive in-flight JJ command. Hidden host panels disable their observers using
+`createViewVisibility`; they retain data and invalidation without polling.
+
+JJ Tree prefetches history and session positions on explicit navigation intent,
+before opening the panel. Presence has independent loading/error state and
+polling, so a slow presence read never delays history. Source browsing and LSP
+queries remain scoped to their existing file-view/peek lifetimes.
+
+Solid signals and stores own selection, filters, sidebar dimensions and persisted
+preferences. Only diff navigation state needs the window-owned `ViewModels`
+cache; it contains no remote requests or data. No second client-state library is
+needed.
 
 ## Mutations and invalidation
 
@@ -51,23 +68,25 @@ is open; never read a mutable row object's commit ID when submitting later.
 ```ts
 const repositories = repositoryServices(ctx)
 const repository = sessionRepository(session)
-const action = createAsyncAction({
-  toast: ctx.toast,
-  gate: repositories.gate(repository),
-})
+const writes = createJJMutations(repositories.queries, repository, session.server.client)
+const action = createAsyncAction({ toast: ctx.toast, gate: repositories.gate(repository) })
 
-await action.run(save, {
-  progress: "Saving…",
-  success: "Saved",
-  onSuccess: () => repositories.events.invalidate(repository, ["feature.items"]),
+await action.run(() => writes.describe(commitID, message), {
+  progress: "Saving…", success: "Saved",
 })
 ```
 
-Subscribe with `observeRepository()` while mounted. Tags are feature-owned;
-`src/features/jj/invalidation.ts` declares the JJ mutation tags. Multiple
-invalidations in one microtask notify each matching subscriber once. Both the
-server ID and directory participate in identity, so changes in one remote checkout
-do not refresh an unrelated server or directory.
+Every JJ write goes through `createJJMutations`, which records a TanStack mutation
+and invalidates the workspace's mutable JJ query prefix only on success. Dialogs
+and menus do not separately publish refresh events. Invalidations batch in one
+microtask. If a matching query is already reading, it finishes without being
+cancelled and performs at most one follow-up read. Hidden or unmounted queries
+remain invalidated until used again. Mutation success does not await slow reads.
+
+The client cache is window-local, not repository truth. External JJ changes still
+need polling; there are no cross-window events or server-side request deduplication
+introduced by this migration. Server single-flight caches remain useful across
+clients.
 
 Gates prevent competing mutation submissions across components in the same
 window/repository. They are not distributed locks across windows or clients.
@@ -132,13 +151,15 @@ bun run build
 
 The test script selects Solid's browser condition so reactive-model, scheduling,
 and lifecycle tests run rather than silently skipping under SSR. These tests do
-not require a DOM: menu and polling controllers use deterministic test environments.
+not require a DOM: menu controllers and query policies/lifecycles run in isolation.
 JJ integration tests use disposable repositories; language-service tests start a
 real bundled TypeScript language server. `jj` and a supported `node` must be on PATH.
 
 `src/features/jj/repository.test.ts` exercises a real commit through the server
-RPC handlers, proving that batched invalidation refreshes history, status and diff
-once each while retaining diff-file identity, filtering and sidebar state.
+RPC handlers and the central mutation policy, proving that invalidation refreshes
+history, status and diff once each while retaining diff-file identity, filtering
+and sidebar state. Query tests cover shared observers, prefetch/remount reuse,
+cancellation, visibility deferral, refresh errors/backoff and identity isolation.
 
 Automated tests do not replace a visual smoke test in OpenCode Desktop: check tree
 focus/menu dismissal, mutation dialogs, both diff modes, peeks, and tab/session

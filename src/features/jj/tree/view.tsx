@@ -1,7 +1,6 @@
 import { createEffect, createMemo, createSignal, For, on, onCleanup, Show } from "solid-js"
 import { createStore, reconcile } from "solid-js/store"
 import { usePlugin, type MountedSession } from "@opencode/plugin/gui"
-import { Status } from "../rpc"
 import { errorMessage } from "../../../shared/errors"
 import { openRevisionDiff } from "../diff/navigation"
 import { revisionAge } from "../diff/time"
@@ -14,16 +13,15 @@ import { RevisionFiles } from "./files"
 import { BookmarkDialog } from "./bookmark-dialog"
 import { treeShortcut } from "./shortcuts"
 import { SquashDialog } from "./squash-dialog"
-import type { SquashDetails } from "./squash-model"
-import { repositoryViewKey, type ViewModels } from "../../../shared/gui/view-models"
-import { createHistoryModel, type HistoryModel, type RevisionFilesModel } from "./state"
+import { createHistoryQueries } from "./state"
 import { createAsyncAction } from "../../../shared/gui/async-action"
-import { createPolling } from "../../../shared/gui/poll"
-import { observeRepository, repositoryServices, sessionRepository } from "../../../shared/gui/repository"
-import { JJ_CHANGED } from "../invalidation"
+import { createViewVisibility, queryData } from "../../../shared/gui/query"
+import { repositoryServices, sessionRepository } from "../../../shared/gui/repository"
+import { createJJMutations } from "../mutations"
 import { createChangeActions } from "./actions"
 import { worktreeSessionGroups } from "./worktree-sessions"
 import { SessionBadges } from "./session-badges"
+import { bookmarksQuery, squashDetailsQuery } from "../queries"
 
 function ChangeID(props: { commit: TreeCommit }) {
   const label = () => changeIDLabel(props.commit)
@@ -32,7 +30,7 @@ function ChangeID(props: { commit: TreeCommit }) {
   </span>
 }
 
-export function TreeView(props: { session: MountedSession; models: ViewModels<HistoryModel>; filesModels: ViewModels<RevisionFilesModel>; focusRequest: number }) {
+export function TreeView(props: { session: MountedSession; focusRequest: number }) {
   const ctx = usePlugin<typeof definition>()
   const ui = ctx.ui
   let panel!: HTMLDivElement
@@ -69,7 +67,6 @@ export function TreeView(props: { session: MountedSession; models: ViewModels<Hi
   const gate = repositories.gate(repository)
   const mutation = createAsyncAction({ toast: ctx.toast, gate })
   const creation = createAsyncAction({ toast: ctx.toast, gate })
-  const changed = () => repositories.events.invalidate(repository, JJ_CHANGED)
   const expansionState = () => ctx.stores.jjTreeExpanded(props.session)
   const expanded = createMemo(() => {
     const value = expansionState().value
@@ -85,16 +82,13 @@ export function TreeView(props: { session: MountedSession; models: ViewModels<Hi
   const mutating = gate.pending
   const [contextMenu, setContextMenu] = createSignal<{ x: number; y: number; commit: TreeCommit; trigger: HTMLButtonElement }>()
   const buttons = new Map<string, HTMLButtonElement>()
-  const model = props.models.use(repositoryViewKey(props.session.server.id, props.session.directory),
-    () => createHistoryModel(props.session.directory))
+  const visible = createViewVisibility(() => panel)
+  const model = createHistoryQueries(repositories.queries, repository, () => props.session.server.client, limit, () => visible() && !mutating())
   const history = model.history
   const refetch = model.refresh
-  createEffect(() => model.configure(props.session.server.client, limit(), 0))
-  const visible = () => !document.hidden && !!panel?.isConnected && !!panel.getClientRects().length
-  observeRepository(repositories.events, repository, ["jj.history", "jj.bookmarks"], () => model.invalidate({ defer: !visible() }))
-  const commits = () => history.latest?.commits ?? []
-  const positions = model.sessionPositions
-  const sessionGroups = createMemo(() => worktreeSessionGroups(positions.error ? [] : positions.latest?.worktreeSessions ?? [], props.session.id,
+  const commits = () => queryData(history)?.commits ?? []
+  const positions = model.positions
+  const sessionGroups = createMemo(() => worktreeSessionGroups(positions.error ? [] : queryData(positions)?.worktreeSessions ?? [], props.session.id,
     new Set(commits().map((commit) => commit.commitID))))
   const [graphState, setGraph] = createStore<ReturnType<typeof layoutHistory>>({ rows: [], lanes: 1 })
   // Retain keyed row/component identities when polling returns fresh objects.
@@ -141,9 +135,7 @@ export function TreeView(props: { session: MountedSession; models: ViewModels<Hi
     onCleanup(() => observer.disconnect())
   }
   const root = (id: string) => /^0+$/.test(id)
-  const refresh = () => { if (!history.loading && !mutating()) void refetch() }
-  createPolling({ loading: () => history.loading, enabled: () => !mutating(), visible,
-    lastFinished: model.lastFinished, delay: model.nextDelay, stale: model.stale, refresh })
+  const refresh = () => { if (!mutating()) refetch() }
   const choose = (index: number, focus = false) => {
     const commit = commits()[index]
     if (!commit) return
@@ -185,6 +177,7 @@ export function TreeView(props: { session: MountedSession; models: ViewModels<Hi
     const directory = props.session.directory
     const client = props.session.server.client
     const commitID = target.commitID
+    const writes = createJJMutations(repositories.queries, { ...repository, directory }, client)
     if (confirm) {
       if (confirming()) return
       setConfirming(true)
@@ -200,8 +193,8 @@ export function TreeView(props: { session: MountedSession; models: ViewModels<Hi
       if (mutating() || props.session.directory !== directory || props.session.server.client !== client) return
     }
     closeMenu(true)
-    await mutation.run(async () => { await client.rpc(Status).abandon({ directory, commitID }) }, {
-      progress: `Abandoning ${target.changeID.slice(0, 8)}…`, success: "Change abandoned", failure: "Could not abandon change", onSuccess: changed,
+    await mutation.run(async () => { await writes.abandon(commitID) }, {
+      progress: `Abandoning ${target.changeID.slice(0, 8)}…`, success: "Change abandoned", failure: "Could not abandon change",
     })
   }
   const describeChange = (target: TreeCommit | undefined) => {
@@ -210,9 +203,10 @@ export function TreeView(props: { session: MountedSession; models: ViewModels<Hi
     const client = props.session.server.client
     const commitID = target.commitID
     closeMenu(true)
+    const writes = createJJMutations(repositories.queries, { ...repository, directory }, client)
     ctx.dialogs.open((dialog) => <DescribeDialog changeID={target.changeID} description={target.description}
       close={dialog.close} describe={async (message) => {
-        await mutation.run(async () => { await client.rpc(Status).describe({ directory, commitID, message }) }, { rethrow: true, onSuccess: changed })
+        await mutation.run(async () => { await writes.describe(commitID, message) }, { rethrow: true })
       }} />)
   }
   const editChange = async (target: TreeCommit) => {
@@ -221,8 +215,9 @@ export function TreeView(props: { session: MountedSession; models: ViewModels<Hi
     const client = props.session.server.client
     closeMenu(true)
     const commitID = target.commitID
-    await mutation.run(async () => { await client.rpc(Status).edit({ directory, commitID }) }, {
-      progress: `Switching to ${target.changeID.slice(0, 8)}…`, success: "Working copy switched to change", failure: "Could not edit change", onSuccess: changed,
+    const writes = createJJMutations(repositories.queries, { ...repository, directory }, client)
+    await mutation.run(async () => { await writes.edit(commitID) }, {
+      progress: `Switching to ${target.changeID.slice(0, 8)}…`, success: "Working copy switched to change", failure: "Could not edit change",
     })
   }
   const bookmarkChange = (target: TreeCommit) => {
@@ -231,10 +226,11 @@ export function TreeView(props: { session: MountedSession; models: ViewModels<Hi
     const client = props.session.server.client
     const commitID = target.commitID
     closeMenu(true)
+    const writes = createJJMutations(repositories.queries, { ...repository, directory }, client)
     ctx.dialogs.open((dialog) => <BookmarkDialog changeID={target.changeID} close={dialog.close}
-      load={async () => await client.rpc(Status).bookmarks({ directory }) as string[]}
+      load={() => repositories.queries.client.fetchQuery(bookmarksQuery({ ...repository, directory }, client))}
       save={async (name) => {
-        await mutation.run(async () => { await client.rpc(Status).setBookmark({ directory, commitID, name }) }, { rethrow: true, onSuccess: changed })
+        await mutation.run(async () => { await writes.setBookmark(commitID, name) }, { rethrow: true })
       }} />)
   }
 
@@ -244,8 +240,9 @@ export function TreeView(props: { session: MountedSession; models: ViewModels<Hi
     const client = props.session.server.client
     const commitID = target.commitID
     closeMenu(true)
-    await mutation.run(async () => { await client.rpc(Status).gitPush({ directory, commitID }) }, {
-      progress: "Pushing bookmarks to Git…", success: "Bookmarks pushed", failure: "Could not push bookmarks", onSuccess: changed,
+    const writes = createJJMutations(repositories.queries, { ...repository, directory }, client)
+    await mutation.run(async () => { await writes.gitPush(commitID) }, {
+      progress: "Pushing bookmarks to Git…", success: "Bookmarks pushed", failure: "Could not push bookmarks",
     })
   }
 
@@ -256,12 +253,13 @@ export function TreeView(props: { session: MountedSession; models: ViewModels<Hi
     // Copy the exact source ID: polling may reconcile and mutate the row object.
     const commitID = target.commitID
     closeMenu(true)
+    const writes = createJJMutations(repositories.queries, { ...repository, directory }, client)
     ctx.dialogs.open((dialog) => <SquashDialog changeID={target.changeID} close={dialog.close}
-      load={async () => await client.rpc(Status).squashDetails({ directory, commitID }) as SquashDetails}
+      load={() => repositories.queries.client.fetchQuery(squashDetailsQuery({ ...repository, directory }, client, commitID))}
       save={async (parentID, message) => {
         await mutation.run(async () => {
-          await client.rpc(Status).squashBelow({ directory, commitID, parentID, ...(message !== undefined ? { message } : {}) })
-        }, { progress: "Squashing change into parent…", rethrow: true, onSuccess: changed })
+          await writes.squashBelow(commitID, parentID, message)
+        }, { progress: "Squashing change into parent…", rethrow: true })
       }} />)
   }
 
@@ -270,8 +268,9 @@ export function TreeView(props: { session: MountedSession; models: ViewModels<Hi
     const directory = props.session.directory
     const client = props.session.server.client
     closeMenu()
-    await creation.run(async () => { await client.rpc(Status).newChange({ directory, ...(commitID ? { commitID } : {}) }) }, {
-      success: "New change created", failure: "Could not create change", onSuccess: changed,
+    const writes = createJJMutations(repositories.queries, { ...repository, directory }, client)
+    await creation.run(async () => { await writes.newChange(commitID) }, {
+      success: "New change created", failure: "Could not create change",
     })
   }
 
@@ -332,32 +331,32 @@ export function TreeView(props: { session: MountedSession; models: ViewModels<Hi
       </div>
       <div class="jello-jj-tree-tools" role="group" aria-label="History actions">
       <button type="button" class="jello-jj-tree-tool" title="New change (jj new)" aria-label="New change"
-        disabled={history.loading || mutating()} aria-busy={creation.pending()} onClick={() => void createChange()}>
+        disabled={history.isFetching || mutating()} aria-busy={creation.pending()} onClick={() => void createChange()}>
         <span aria-hidden="true"><ui.Icon name="plus-small" size="small" /></span>
       </button>
       <button type="button" class="jello-jj-tree-tool is-working-copy" title="Jump to working copy" aria-label="Jump to working copy" disabled={!commits().some((commit) => commit.current)} onClick={jump}>@</button>
-      <button type="button" class="jello-jj-tree-tool" title="Refresh history (r)" aria-label="Refresh history" disabled={history.loading || mutating()} onClick={refresh}>
+      <button type="button" class="jello-jj-tree-tool" title="Refresh history (r)" aria-label="Refresh history" disabled={history.isFetching || mutating()} onClick={refresh}>
         <span aria-hidden="true"><ui.Icon name="refresh" size="small" /></span>
       </button>
       </div>
     </header>
-    <Show when={positions.loading && !positions.latest}>
+    <Show when={positions.isFetching && !queryData(positions)}>
       <div class="jello-jj-tree-session-notice" role="status">Loading worktree session positions…</div>
     </Show>
     <Show when={positions.error}>
-      <div class="jello-jj-tree-session-notice" role="status" title={errorMessage(positions.error)}>Worktree session positions unavailable. <button type="button" disabled={positions.loading} onClick={model.refreshPositions}>Retry</button></div>
+      <div class="jello-jj-tree-session-notice" role="status" title={errorMessage(positions.error)}>Worktree session positions unavailable. <button type="button" disabled={positions.isFetching} onClick={() => void positions.refetch({ cancelRefetch: false })}>Retry</button></div>
     </Show>
-    <Show when={positions.latest?.worktreeSessionsTruncated}>
+    <Show when={queryData(positions)?.worktreeSessionsTruncated}>
       <div class="jello-jj-tree-session-notice" role="status">Session positions cover the latest 2,000 non-archived conversations.</div>
     </Show>
     <Show when={history.error}>
       <div class="jello-jj-tree-empty" role="alert"><strong>History unavailable</strong><p>{errorMessage(history.error)}</p><button type="button" onClick={refresh}>Retry</button></div>
     </Show>
-    <Show when={history.loading && !history.latest}>
+    <Show when={history.isFetching && !queryData(history)}>
       <div class="jello-jj-tree-empty" role="status">Loading history…</div>
     </Show>
-    <Show when={history.latest}>
-      <div class="jello-jj-tree-scroll" aria-busy={history.loading}>
+    <Show when={queryData(history)}>
+      <div class="jello-jj-tree-scroll" aria-busy={history.isFetching}>
         <Show when={commits().length} fallback={<div class="jello-jj-tree-empty">No revisions in the configured log view.</div>}>
           <div class="jello-jj-tree-history" style={{ "--tree-gutter": `${gutter()}px`, "--tree-row-height": `${ROW_HEIGHT}px`, "min-width": `${gutter() + 220}px` }}>
             <svg class="jello-jj-tree-graph" width={gutter()} height={offsets().at(-1) ?? 0} aria-hidden="true">
@@ -451,7 +450,7 @@ export function TreeView(props: { session: MountedSession; models: ViewModels<Hi
                   <SessionBadges sessions={sessionGroups().rows.get(row.commit.commitID) ?? []} server={props.session.server.id} />
                 </Show>
                 <Show when={expanded().has(row.commit.changeID)}>
-                  <RevisionFiles session={props.session} models={props.filesModels} commitID={row.commit.commitID} changeID={row.commit.changeID} divergent={row.commit.divergent} />
+                  <RevisionFiles session={props.session} commitID={row.commit.commitID} changeID={row.commit.changeID} divergent={row.commit.divergent} />
                 </Show>
               </li>}</For>
             </ol>
@@ -464,9 +463,9 @@ export function TreeView(props: { session: MountedSession; models: ViewModels<Hi
           </div>
         </Show>
         <footer class="jello-jj-tree-tail">
-          <Show when={history.latest?.hasMore} fallback={<span>End of log view</span>}>
-            <button type="button" disabled={history.loading || limit() >= 2000} onClick={() => setLimit((value) => Math.min(2000, value + 100))}>
-              {history.loading ? "Loading…" : limit() >= 2000 ? "Showing first 2,000 revisions" : "Load more revisions"}
+          <Show when={queryData(history)?.hasMore} fallback={<span>End of log view</span>}>
+            <button type="button" disabled={history.isFetching || limit() >= 2000} onClick={() => setLimit((value) => Math.min(2000, value + 100))}>
+              {history.isFetching ? "Loading…" : limit() >= 2000 ? "Showing first 2,000 revisions" : "Load more revisions"}
             </button>
           </Show>
         </footer>

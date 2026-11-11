@@ -1,19 +1,20 @@
-import { createEffect, For, Show } from "solid-js"
+import { For, Show } from "solid-js"
+import { useQuery } from "@tanstack/solid-query"
 import { usePlugin } from "@opencode/plugin/gui"
 import type { definition } from "../../gui/definition"
 import { summarizeStatus } from "./status-summary"
 import type { Revision } from "./overview"
 import { openRevisionDiff } from "./diff/navigation"
 import { errorMessage } from "../../shared/errors"
-import { createPolling } from "../../shared/gui/poll"
-import { observeRepository, repositoryServices, sessionRepository } from "../../shared/gui/repository"
-import { repositoryViewKey, type ViewModels } from "../../shared/gui/view-models"
-import { createStatusModel, type StatusModel } from "./status-model"
+import { repositoryServices, sessionRepository } from "../../shared/gui/repository"
+import { repositoryKey } from "../../shared/repository"
+import { createViewVisibility, queryData } from "../../shared/gui/query"
+import { overviewQuery } from "./queries"
 
-export function StatusBar(props: { models: ViewModels<StatusModel> }) {
+export function StatusBar() {
   const ctx = usePlugin()
-  return <Show keyed when={ctx.sessions.current() && repositoryViewKey(ctx.sessions.current()!.server.id, ctx.sessions.current()!.directory)}>
-    {(_key) => <StatusContents models={props.models} />}
+  return <Show keyed when={ctx.sessions.current() && repositoryKey(sessionRepository(ctx.sessions.current()!))}>
+    {(_key) => <StatusContents />}
   </Show>
 }
 
@@ -41,21 +42,20 @@ function RevisionLabel(props: { revision: Revision; open(): void }) {
   </Show>
 }
 
-function StatusContents(props: { models: ViewModels<StatusModel> }) {
+function StatusContents() {
   const ctx = usePlugin<typeof definition>()
   const session = ctx.sessions.current()!
   const repository = sessionRepository(session)
-  const model = props.models.use(repositoryViewKey(repository.server, repository.directory), () => createStatusModel(repository.directory))
-  createEffect(() => model.configure(ctx.sessions.current()!.server.client))
-  observeRepository(repositoryServices(ctx).events, repository, ["jj.working-copy", "jj.history", "jj.bookmarks"], () => model.invalidate({ defer: document.hidden }))
-  createPolling({ loading: () => model.result.loading, enabled: () => true, visible: () => !document.hidden,
-    lastFinished: model.lastFinished, delay: model.nextDelay, stale: model.stale, refresh: model.refresh })
+  const { client } = repositoryServices(ctx).queries
+  let panel!: HTMLDivElement
+  const visible = createViewVisibility(() => panel)
+  const query = useQuery(() => ({ ...overviewQuery(client, repository, ctx.sessions.current()?.server.client ?? session.server.client), enabled: visible() }), () => client)
 
   const current = () => {
     const session = ctx.sessions.current()
     if (repository.directory !== session?.directory || repository.server !== session?.server.id) return undefined
-    const result = model.result.latest
-    if (model.result.error) return { directory: repository.directory, text: errorMessage(model.result.error), summary: "jj · status unavailable",
+    const result = queryData(query)
+    if (!result && query.error) return { directory: repository.directory, text: errorMessage(query.error), summary: "jj · status unavailable",
       revisions: [] as Revision[], lines: { modified: 0, added: 0, deleted: 0 }, error: true }
     return result && { ...result, directory: repository.directory, summary: summarizeStatus(result.text), error: false }
   }
@@ -65,15 +65,17 @@ function StatusContents(props: { models: ViewModels<StatusModel> }) {
   return (
     <Show when={ctx.sessions.current()}>
       <div
+        ref={panel}
         class="jello-jj-status-bar"
         role="region"
         aria-label="JJ working copy"
         data-mode={ctx.appearance.mode()}
         classList={{ "jello-jj-status-bar-error": current()?.error }}
+        title={query.error ? `Could not refresh: ${errorMessage(query.error)}` : undefined}
       >
       <div
         class="jello-jj-status-main"
-        title={current()?.text}
+        title={query.error ? `Could not refresh: ${errorMessage(query.error)}\n${current()?.text ?? ""}` : current()?.text}
       >
         <Show when={current()?.revisions.length} fallback={
           <span class="jello-jj-description">{current()?.summary.replace(/^jj · /, "") || "Loading jj status…"}</span>

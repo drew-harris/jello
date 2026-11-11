@@ -45,18 +45,20 @@ test("failed actions retain structured RPC errors, do not invalidate, and can re
 
 test("repository gates protect different components but isolate different repositories", async () => {
   const repositories = createRepositoryServices()
-  const repository = { server: "remote", directory: "/repo" }
-  const gate = repositories.gate(repository)
-  assert.equal(repositories.gate({ ...repository }), gate)
-  const release = gate.acquire()
-  const action = createAsyncAction({ gate })
-  await assert.rejects(action.run(async () => { throw new Error("must not execute") }, { rethrow: true }), /Another change operation/)
-  assert.equal(gate.pending(), true, "a rejected contender must not release the active operation")
-  assert.equal(action.pending(), false)
-  assert.equal(repositories.gate({ ...repository, server: "other" }).pending(), false)
-  assert.equal(repositories.gate({ ...repository, directory: "/other" }).pending(), false)
-  release()
-  assert.equal(await action.run(async () => 42), 42)
+  try {
+    const repository = { server: "remote", directory: "/repo" }
+    const gate = repositories.gate(repository)
+    assert.equal(repositories.gate({ ...repository }), gate)
+    const release = gate.acquire()
+    const action = createAsyncAction({ gate })
+    await assert.rejects(action.run(async () => { throw new Error("must not execute") }, { rethrow: true }), /Another change operation/)
+    assert.equal(gate.pending(), true, "a rejected contender must not release the active operation")
+    assert.equal(action.pending(), false)
+    assert.equal(repositories.gate({ ...repository, server: "other" }).pending(), false)
+    assert.equal(repositories.gate({ ...repository, directory: "/other" }).pending(), false)
+    release()
+    assert.equal(await action.run(async () => 42), 42)
+  } finally { repositories.queries.dispose() }
 })
 
 test("failed work dismisses progress, releases the gate and never publishes success", async () => {

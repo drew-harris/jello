@@ -1,7 +1,7 @@
 import type { FileDiffMetadata } from "@pierre/diffs"
 import { unwrap } from "solid-js/store"
 
-// createLatest exposes a deeply proxied, read-only Solid store. Pierre hydrates
+// Solid Query exposes a deeply proxied, read-only Solid store. Pierre hydrates
 // patch metadata in place, so it must receive the underlying mutable objects.
 // Keep their identity (rather than cloning) for caches and working-copy polls.
 export function rendererDiffFiles(files: FileDiffMetadata[]): FileDiffMetadata[] {

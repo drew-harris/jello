@@ -1,13 +1,13 @@
 import { Contract, type Context, type MountedSession } from "@opencode/plugin/gui"
-import { onCleanup } from "solid-js"
-import { RepositoryEvents, repositoryKey, type Repository } from "../repository"
+import { repositoryKey, type Repository } from "../repository"
 import { createActionGate } from "./async-action"
+import { createWindowQueries } from "./query"
 
 export function createRepositoryServices() {
-  const events = new RepositoryEvents()
+  const queries = createWindowQueries()
   const gates = new Map<string, ReturnType<typeof createActionGate>>()
   return {
-    events,
+    queries,
     gate(repository: Repository) {
       const key = repositoryKey(repository)
       let gate = gates.get(key)
@@ -24,7 +24,3 @@ export function repositoryServices(ctx: Context) {
   return live.value
 }
 export const sessionRepository = (session: MountedSession): Repository => ({ server: session.server.id, directory: session.directory })
-
-export function observeRepository(events: RepositoryEvents, repository: Repository, tags: readonly string[], refresh: () => void) {
-  onCleanup(events.subscribe(repository, tags, refresh))
-}
