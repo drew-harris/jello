@@ -110,6 +110,44 @@ test("reads a pinned historical revision, not current working-copy changes", asy
   }
 })
 
+test("the single parent of an empty working copy supports language queries without changing diff identity", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "jello-empty-parent-"))
+  try {
+    const jj = async (args: string[]) => (await execute("jj", args, { cwd: directory })).stdout
+    await jj(["git", "init", "."])
+    await jj(["config", "set", "--repo", "user.name", "Jello Test"])
+    await jj(["config", "set", "--repo", "user.email", "test@example.com"])
+    await writeFile(join(directory, "example.ts"), "const value = 1\n")
+    await commit(directory, "Base")
+    const parent = (await jj(["log", "--no-graph", "-r", "@-", "-T", "commit_id"])).trim()
+    const first = await readRevisionDiff(directory, parent)
+    assert.equal(first.workingCopySource, true)
+    assert.equal(first.revision.current, false)
+    assert.equal(first.revision.commitID, parent)
+    assert.ok(first.patch.includes("+const value = 1"))
+    const cached = await readRevisionDiff(directory, parent, undefined, parent)
+    assert.equal(cached.unchanged, true)
+    assert.equal(cached.workingCopySource, true)
+
+    // No jj command snapshots this edit before the diff request.
+    await writeFile(join(directory, "example.ts"), "const value = 2\n")
+    const edited = await readRevisionDiff(directory, parent, undefined, parent)
+    assert.equal(edited.unchanged, true)
+    assert.equal(edited.workingCopySource, false)
+    const live = await readRevisionDiff(directory, (await jj(["log", "--no-graph", "-r", "@", "-T", "commit_id"])).trim())
+    assert.equal(live.workingCopySource, true)
+
+    // Empty merge commits do not necessarily match either parent's tree.
+    await jj(["new", parent])
+    await writeFile(join(directory, "other.ts"), "export const other = 1\n")
+    await jj(["new", parent, "@"])
+    const mergeParent = (await jj(["log", "--no-graph", "-r", "@- & ~" + parent, "-T", "commit_id"])).trim()
+    assert.equal((await readRevisionDiff(directory, mergeParent)).workingCopySource, false)
+  } finally {
+    await rm(directory, { recursive: true, force: true })
+  }
+})
+
 test("working-copy diffs snapshot edits and follow the same change across rewritten hashes", async () => {
   const directory = await mkdtemp(join(tmpdir(), "jello-live-diff-"))
   try {

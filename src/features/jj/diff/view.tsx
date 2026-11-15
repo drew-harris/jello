@@ -366,7 +366,8 @@ function DiffContents(props: DiffViewProps & { modelKey: string; registerHunkNav
       setContextLoading((count) => count - 1)
     }
   }, (error) => ctx.toast.show({ title: "Could not expand unchanged lines", description: errorMessage(error), variant: "error" }))
-  const peek = createCodePeek(() => props.session, () => active()?.data?.revision.commitID ?? "", () => !!active()?.data?.revision.current)
+  const peek = createCodePeek(() => props.session, () => active()?.data?.revision.commitID ?? "",
+    () => active()?.data?.workingCopySource ?? !!active()?.data?.revision.current)
   // Code clicks focus the enclosing section (outside .diff-main), so attach at
   // window level and scope to this panel instead of relying on child bubbling.
   const peekKeydown = (event: KeyboardEvent) => {

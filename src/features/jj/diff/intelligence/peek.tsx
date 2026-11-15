@@ -22,7 +22,7 @@ function restoreDiffFocus(element: HTMLElement | undefined) {
   if (target?.isConnected) target.focus({ preventScroll: true })
 }
 
-export function createCodePeek(session: Accessor<MountedSession>, revision: Accessor<string>, current: Accessor<boolean>) {
+export function createCodePeek(session: Accessor<MountedSession>, revision: Accessor<string>, workingCopySource: Accessor<boolean>) {
   const ctx = usePlugin()
   const client = createLanguageClient(session)
   const fileChanges = createFileChangeProvider(session)
@@ -77,7 +77,7 @@ export function createCodePeek(session: Accessor<MountedSession>, revision: Acce
   }
   // Polling replaces result objects even when the commit is unchanged. Memoize
   // the primitive identity so those refreshes never dismiss an active peek.
-  const identity = createMemo(() => JSON.stringify([revision(), session().server.id, session().directory, current()]))
+  const identity = createMemo(() => JSON.stringify([revision(), session().server.id, session().directory, workingCopySource()]))
   createEffect(() => {
     identity()
     cancel()
@@ -190,8 +190,8 @@ export function createCodePeek(session: Accessor<MountedSession>, revision: Acce
     setDefinition(undefined)
     targetSide = token.side
     symbolElement = token.tokenElement
-    const unsupported = !current() || token.side === "deletions"
-    setUnavailable(unsupported ? "Peeks and symbol highlights are available on the working-copy (right/additions) side only." : "")
+    const unsupported = !workingCopySource() || token.side === "deletions"
+    setUnavailable(unsupported ? "Peeks and symbol highlights require the right/additions side of the working copy or the single parent of an empty working copy." : "")
     if (unsupported) clearHighlights()
     else void highlight(position)
   }

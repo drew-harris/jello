@@ -258,7 +258,7 @@ export const Status = Rpc.define({
       },
       output: {
         type: "object",
-        properties: { patch: { type: "string" }, revision: revisionSchema, unchanged: { type: "boolean" } },
+        properties: { patch: { type: "string" }, revision: revisionSchema, workingCopySource: { type: "boolean" }, unchanged: { type: "boolean" } },
         required: ["patch", "revision"],
         additionalProperties: false,
       },
