@@ -22,7 +22,8 @@ export const setupDiff: Plugin.Setup<typeof definition> = (ctx) => {
     setRevisions((previous) => {
       const saved = previous[key]
       if (saved?.current === revision.current && saved.changeID8 === revision.changeID8
-        && saved.commitID === revision.commitID && saved.divergent === revision.divergent && saved.fullChangeID === revision.fullChangeID) return previous
+        && saved.commitID === revision.commitID && saved.divergent === revision.divergent && saved.fullChangeID === revision.fullChangeID
+        && saved.baseBranch === revision.baseBranch) return previous
       return { ...previous, [key]: { ...revision } }
     })
   }
@@ -50,7 +51,7 @@ export const setupDiff: Plugin.Setup<typeof definition> = (ctx) => {
       const key = scoped(diffSessionKey(session), id)
       let tab = tabs.get(key)
       if (!tab) {
-        tab = { id, get title() { return diffTabTitle(revisions()[key]) }, closable: "compact", tabbable: true }
+        tab = { id, get title() { return diffTabTitle(revisions()[key], target.againstMain) }, closable: "compact", tabbable: true }
         tabs.set(key, tab)
       }
       return [tab]

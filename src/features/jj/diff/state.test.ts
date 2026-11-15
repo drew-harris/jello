@@ -25,6 +25,36 @@ const repository = { server: "remote", directory: "/repo" }
 const id = diffTabID({ directory: "/repo", changeID: revision.fullChangeID })
 const flush = async () => { for (let index = 0; index < 30; index++) await Promise.resolve() }
 
+test("PR queries use separate caches and send both cached endpoints on refresh", { skip: isServer }, async () => {
+  const queries = createWindowQueries()
+  const requests: Array<{ againstMain?: boolean; knownCommitID?: string; knownBaseCommitID?: string }> = []
+  const baseCommitID = "b".repeat(40)
+  const client = { rpc: () => ({ diff: async (input: typeof requests[number]) => {
+    requests.push(input)
+    return { revision, patch: input.againstMain ? patch("pr.ts") : patch("single.ts"),
+      ...(input.againstMain ? { baseCommitID, workingCopySource: true } : {}) }
+  } }) } as unknown as MountedSession["server"]["client"]
+  let dispose!: () => void
+  const remote = createRoot((cleanup) => {
+    dispose = cleanup
+    return {
+      single: useQuery(() => diffQuery(queries.client, repository, client, id), () => queries.client),
+      pr: useQuery(() => diffQuery(queries.client, repository, client,
+        diffTabID({ directory: repository.directory, changeID: revision.fullChangeID, againstMain: true })), () => queries.client),
+    }
+  })
+  try {
+    await flush()
+    assert.equal(requests.length, 2)
+    assert.equal(queryData(remote.single)?.files[0]?.name, "single.ts")
+    assert.equal(queryData(remote.pr)?.files[0]?.name, "pr.ts")
+    await remote.pr.refetch({ cancelRefetch: false })
+    assert.equal(requests[2]?.againstMain, true)
+    assert.equal(requests[2]?.knownCommitID, revision.commitID)
+    assert.equal(requests[2]?.knownBaseCommitID, baseCommitID)
+  } finally { dispose(); queries.dispose() }
+})
+
 test("diff queries retain raw renderer identity while UI models retain only navigation across remounts", { skip: isServer }, async () => {
   const queries = createWindowQueries()
   const requests: Array<{ knownCommitID?: string }> = []

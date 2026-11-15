@@ -4,6 +4,7 @@ export interface DiffTarget {
   changeID?: string
   divergent?: boolean
   file?: string
+  againstMain?: boolean
 }
 
 export interface DiffTabRevision {
@@ -12,15 +13,18 @@ export interface DiffTabRevision {
   fullChangeID?: string
   commitID?: string
   divergent?: boolean
+  baseBranch?: string
 }
 
-export function diffTabTitle(revision?: DiffTabRevision): string {
+export function diffTabTitle(revision?: DiffTabRevision, againstMain = false): string {
+  if (againstMain) return revision ? `JJ PR · ${revision.changeID8} vs ${revision.baseBranch ?? "default branch"}` : "JJ PR · default branch"
   return revision?.current ? "Working copy" : revision ? `JJ Diff · ${revision.changeID8}` : "JJ Diff"
 }
 
 const prefix = "jj-diff/"
 
 export function diffTabID(target: DiffTarget): string {
+  if (target.againstMain) return `${prefix}main/${diffTabID({ ...target, againstMain: false }).slice(prefix.length)}`
   if (target.changeID && !target.divergent) {
     if (!/^(?:[k-z]{32}|[k-z]{64})$/.test(target.changeID)) throw new Error("Expected a full change ID")
     return `${prefix}change/${target.changeID}/${encodeURIComponent(target.directory)}`
@@ -31,6 +35,12 @@ export function diffTabID(target: DiffTarget): string {
 
 export function parseDiffTabID(id: string): DiffTarget | undefined {
   if (!id.startsWith(prefix)) return
+  if (id.startsWith(`${prefix}main/`)) {
+    const rest = id.slice(`${prefix}main/`.length)
+    if (rest.startsWith("main/")) return
+    const target = parseDiffTabID(prefix + rest)
+    return target ? { ...target, againstMain: true } : undefined
+  }
   if (id.startsWith(`${prefix}change/`)) {
     const [changeID, directory, extra] = id.slice(`${prefix}change/`.length).split("/")
     if (!/^(?:[k-z]{32}|[k-z]{64})$/.test(changeID ?? "") || !directory || extra !== undefined) return
@@ -52,7 +62,7 @@ export function reusableDiffTab(ids: readonly string[], target: DiffTarget, revi
   if (ids.includes(canonical)) return canonical
   return ids.find((id) => {
     const saved = parseDiffTabID(id)
-    if (!saved || saved.directory !== target.directory) return false
+    if (!saved || saved.directory !== target.directory || !!saved.againstMain !== !!target.againstMain) return false
     if (target.changeID && !target.divergent && !revisions[id]?.divergent
       && (saved.changeID === target.changeID || revisions[id]?.fullChangeID === target.changeID)) return true
     return !!target.commitID && saved.commitID === target.commitID

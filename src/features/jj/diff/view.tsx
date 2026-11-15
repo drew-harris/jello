@@ -332,7 +332,7 @@ function DiffContents(props: DiffViewProps & { modelKey: string; registerHunkNav
   const refetch = () => void remote.refetch({ cancelRefetch: false })
   createEffect(() => {
     const revision = queryData(remote)?.data.revision
-    if (revision) props.onRevision?.(props.tabID, revision)
+    if (revision) props.onRevision?.(props.tabID, { ...revision, baseBranch: queryData(remote)?.data.baseBranch })
   })
   createEffect(on([() => props.tabID, () => props.focusRevision, () => props.requestedFile], () => {
     const target = parseDiffTabID(props.tabID)
@@ -361,7 +361,8 @@ function DiffContents(props: DiffViewProps & { modelKey: string; registerHunkNav
     if (!commitID) throw new Error("Revision not loaded")
     setContextLoading((count) => count + 1)
     try {
-      return await props.session.server.client.rpc(Status).diffContext({ directory: parseDiffTabID(props.tabID)!.directory, commitID, path: file.name }) as { patch: string }
+      return await props.session.server.client.rpc(Status).diffContext({ directory: parseDiffTabID(props.tabID)!.directory,
+        commitID, path: file.name, ...(active()?.data?.baseCommitID ? { baseCommitID: active()!.data!.baseCommitID } : {}) }) as { patch: string }
     } finally {
       setContextLoading((count) => count - 1)
     }

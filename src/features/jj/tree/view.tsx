@@ -275,6 +275,12 @@ export function TreeView(props: { session: MountedSession; focusRequest: number 
   }
 
   const actions = createChangeActions({ busy: mutating, commits, run(id, target, source) {
+    if (id === "diff-main") {
+      closeMenu()
+      openRevisionDiff(ctx, props.session, { directory: props.session.directory, commitID: target.commitID,
+        changeID: target.changeID, divergent: target.divergent, againstMain: true })
+      return
+    }
     if (id === "new") return createChange(target.commitID)
     if (id === "edit") return editChange(target)
     if (id === "describe") return describeChange(target)

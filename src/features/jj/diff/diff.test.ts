@@ -7,10 +7,73 @@ import { test } from "node:test"
 import { promisify } from "node:util"
 import { parsePatchFiles } from "@pierre/diffs"
 import { commit } from "../commit"
-import { readRevisionDiff } from "./server"
+import { readDiffContext, readRevisionDiff } from "./server"
 import { diffFileIndex, diffTabID, diffTabTitle, parseDiffTabID, reusableDiffTab } from "./tab"
 
 const execute = promisify(execFile)
+
+test("PR tabs restore separately from single-change tabs", () => {
+  const target = { directory: "/repo ü", changeID: "k".repeat(32), againstMain: true }
+  const id = diffTabID(target)
+  const single = diffTabID({ ...target, againstMain: false })
+  assert.deepEqual(parseDiffTabID(id), target)
+  assert.notEqual(single, id)
+  assert.equal(reusableDiffTab([single], target, {}), id)
+  assert.equal(reusableDiffTab([id], { ...target, againstMain: false }, {}), single)
+  assert.equal(diffTabTitle({ current: true, changeID8: "kkkkkkkk", baseBranch: "master" }, true), "JJ PR · kkkkkkkk vs master")
+  assert.equal(parseDiffTabID(id.replace("main/", "main/main/")), undefined)
+})
+
+test("PR diffs combine commits from the merge base, pin context, and invalidate on base changes", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "jello-pr-diff-"))
+  try {
+    const jj = async (args: string[]) => (await execute("jj", args, { cwd: directory })).stdout
+    const id = async (revision: string) => (await jj(["log", "--no-graph", "-r", revision, "-T", "commit_id"])).trim()
+    await jj(["git", "init", "."])
+    await jj(["config", "set", "--repo", "user.name", "Jello Test"])
+    await jj(["config", "set", "--repo", "user.email", "test@example.com"])
+    await writeFile(join(directory, "base.ts"), "export const base = 1\n")
+    await jj(["new"])
+    const base = await id("@-")
+    await jj(["bookmark", "set", "main", "-r", base])
+    await writeFile(join(directory, "one.ts"), "export const one = 1\n")
+    await jj(["new"])
+    const first = await id("@-")
+    await writeFile(join(directory, "two.ts"), "export const two = 2\n")
+    const tip = await id("@")
+    const single = await readRevisionDiff(directory, tip)
+    assert.ok(!single.patch.includes("one.ts"))
+    const pr = await readRevisionDiff(directory, tip, undefined, undefined, { againstMain: true })
+    assert.equal(pr.baseCommitID, base)
+    assert.equal(pr.baseBranch, "main")
+    assert.equal(pr.workingCopySource, true)
+    assert.ok(pr.patch.includes("one.ts"))
+    assert.ok(pr.patch.includes("two.ts"))
+    const cached = await readRevisionDiff(directory, tip, undefined, tip, { againstMain: true, knownBaseCommitID: base })
+    assert.equal(cached.unchanged, true)
+    const context = await readDiffContext(directory, tip, "one.ts", undefined, base)
+    assert.ok(context.patch.includes("+export const one = 1"))
+
+    // Main advanced independently: its new file must not be shown as deleted.
+    await jj(["new", base])
+    await writeFile(join(directory, "main-only.ts"), "main only\n")
+    const main = await id("@")
+    await jj(["bookmark", "set", "main", "-r", main])
+    const advanced = await readRevisionDiff(directory, tip, undefined, undefined, { againstMain: true })
+    assert.equal(advanced.baseCommitID, base)
+    assert.ok(!advanced.patch.includes("main-only.ts"))
+    await jj(["bookmark", "set", "main", "-r", first, "--allow-backwards"])
+    const moved = await readRevisionDiff(directory, tip, undefined, tip, { againstMain: true, knownBaseCommitID: base })
+    assert.equal(moved.baseCommitID, first)
+    assert.ok(!moved.unchanged)
+    assert.ok(!moved.patch.includes("one.ts"))
+    assert.ok(moved.patch.includes("two.ts"))
+    await jj(["bookmark", "delete", "main"])
+    await assert.rejects(readRevisionDiff(directory, tip, undefined, undefined, { againstMain: true }), /main/)
+  } finally {
+    await rm(directory, { recursive: true, force: true })
+  }
+})
 
 test("diff tab titles use Working copy or JJ Diff with a dot and change ID", () => {
   assert.equal(diffTabTitle(), "JJ Diff")

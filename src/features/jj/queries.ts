@@ -55,12 +55,14 @@ export function diffQuery(cache: QueryClient, repository: Repository, client: Cl
   const target = parseDiffTabID(id)
   if (!target || target.directory !== repository.directory) throw new Error("Invalid diff tab for this repository")
   return queryOptions(readQueryOptions<DiffData>(cache,
-    [...jjQueryKey(repository), "diff", target.changeID ? "change" : "commit", target.changeID ?? target.commitID],
+    [...jjQueryKey(repository), "diff", target.changeID ? "change" : "commit", target.changeID ?? target.commitID,
+      ...(target.againstMain ? ["main"] : [])],
     async (signal, previous) => {
       const knownCommitID = previous?.data.revision.commitID
       const changeID = target.changeID ?? (!previous?.data.revision.divergent ? previous?.data.revision.fullChangeID : undefined)
       const update = await client.rpc(Status).diff({ directory: repository.directory,
-        ...(changeID ? { changeID } : { commitID: knownCommitID ?? target.commitID }),
+         ...(changeID ? { changeID } : { commitID: knownCommitID ?? target.commitID }),
+        ...(target.againstMain ? { againstMain: true, knownBaseCommitID: previous?.data.baseCommitID } : {}),
         ...(knownCommitID ? { knownCommitID } : {}) }, { signal }) as RevisionDiff
       signal.throwIfAborted()
       if (update.unchanged && !previous) throw new Error("Missing cached diff. Refresh to load it again.")
@@ -68,5 +70,5 @@ export function diffQuery(cache: QueryClient, repository: Repository, client: Cl
       const files = previous?.data.patch === data.patch ? previous.files
         : reuseDiffFiles(previous?.files ?? [], parsePatchFiles(data.patch, `${repository.directory}:${data.revision.commitID}`, true).flatMap((patch) => patch.files))
       return { data, files }
-    }, { interval: DIFF_POLL_INTERVAL, poll: (value) => !!value?.data.revision.current }))
+    }, { interval: DIFF_POLL_INTERVAL, poll: (value) => !!target.againstMain || !!value?.data.revision.current }))
 }

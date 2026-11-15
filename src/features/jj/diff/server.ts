@@ -1,13 +1,16 @@
 import { runJJ, validateCommitID } from "../command.ts"
 import { parseRevisions, revisionTemplate, type Revision } from "../overview.ts"
+import { resolveDiffBase } from "./base.ts"
 
 // Load only the requested file, pinned to the same immutable revision as the
 // initial patch. A full-context diff also handles merged parents correctly.
-export async function readDiffContext(directory: string, commitID: string, path: string, signal?: AbortSignal): Promise<{ patch: string }> {
+export async function readDiffContext(directory: string, commitID: string, path: string, signal?: AbortSignal, baseCommitID?: string): Promise<{ patch: string }> {
   validateCommitID(commitID, "Invalid commit ID")
+  if (baseCommitID !== undefined) validateCommitID(baseCommitID, "Invalid base commit ID")
   if (!path || path.includes("\0") || path.startsWith("/") || path.split("/").some((part) => part === "..")) throw new Error("Invalid file path")
   const result = await runJJ(["diff", "--ignore-working-copy", "--git", "--context=2147483647",
-    "-r", commitID, "--", `file:${JSON.stringify(path)}`], { cwd: directory, signal, timeout: 30_000, maxBuffer: 16 * 1024 * 1024 })
+    ...(baseCommitID ? ["--from", baseCommitID, "--to", commitID] : ["-r", commitID]),
+    "--", `file:${JSON.stringify(path)}`], { cwd: directory, signal, timeout: 30_000, maxBuffer: 16 * 1024 * 1024 })
   return { patch: result.stdout }
 }
 
@@ -15,6 +18,8 @@ export interface RevisionDiff {
   patch: string
   revision: Revision
   workingCopySource?: boolean
+  baseCommitID?: string
+  baseBranch?: string
   unchanged?: boolean
 }
 
@@ -29,12 +34,14 @@ const identityTemplate = [
   '"}\\n"',
 ].join(" ++ ")
 
-export async function readRevisionDiff(directory: string, commitID: string, signal?: AbortSignal, knownCommitID?: string): Promise<RevisionDiff> {
+export async function readRevisionDiff(directory: string, commitID: string, signal?: AbortSignal, knownCommitID?: string,
+  comparison?: { againstMain?: boolean; knownBaseCommitID?: string; diffBase?: string }): Promise<RevisionDiff> {
   // Normal tabs follow a full change ID; divergent tabs pin an exact commit.
   // Never accept arbitrary revsets, abbreviations, or options.
   const byChange = /^(?:[k-z]{32}|[k-z]{64})$/.test(commitID)
   if (!byChange) validateCommitID(commitID, "Invalid commit ID or change ID")
   if (knownCommitID !== undefined) validateCommitID(knownCommitID, "Invalid known commit ID")
+  if (comparison?.knownBaseCommitID !== undefined) validateCommitID(comparison.knownBaseCommitID, "Invalid known base commit ID")
   const options = { cwd: directory, signal, timeout: 30_000, maxBuffer: 16 * 1024 * 1024 }
   // A working-copy snapshot rewrites its commit hash. Compare full change IDs
   // so this tab follows that change only while it is still the working copy.
@@ -63,9 +70,24 @@ export async function readRevisionDiff(directory: string, commitID: string, sign
     "-r", live ? "@" : original.commitID, "-T", revisionTemplate], options)
   const revision = parseRevisions(metadata.stdout)[0]
   if (!revision) throw new Error("Revision not found")
+  let baseCommitID: string | undefined
+  let baseBranch: string | undefined
+  if (comparison?.againstMain) {
+    const branch = await resolveDiffBase(options, comparison.diffBase)
+    baseBranch = branch.label
+    // Three-dot/PR semantics: default-branch-only changes must not appear as reversals.
+    // Pin the base too, so context expansion never resolves a moved bookmark.
+    const bases = await runJJ(["log", "--ignore-working-copy", "--no-graph",
+      "-r", `heads(::${branch.commitID} & ::${revision.commitID})`, "-T", 'commit_id ++ "\\n"'], options)
+    const ids = bases.stdout.trim().split("\n").filter(Boolean)
+    if (ids.length !== 1) throw new Error(`PR diff requires a single common ancestor with ${baseBranch}.`)
+    baseCommitID = ids[0]
+  }
   // The client already holds the patch for this immutable hash. Avoid the
   // expensive diff command and sending megabytes over the remote connection.
-  if (revision.commitID === knownCommitID) return { revision, workingCopySource, patch: "", unchanged: true }
-  const diff = await runJJ(["diff", "--ignore-working-copy", "--git", "--context=6", "-r", revision.commitID], options)
-  return { patch: diff.stdout, revision, workingCopySource }
+  if (revision.commitID === knownCommitID && baseCommitID === comparison?.knownBaseCommitID)
+    return { revision, workingCopySource, baseCommitID, baseBranch, patch: "", unchanged: true }
+  const diff = await runJJ(["diff", "--ignore-working-copy", "--git", "--context=6",
+    ...(baseCommitID ? ["--from", baseCommitID, "--to", revision.commitID] : ["-r", revision.commitID])], options)
+  return { patch: diff.stdout, revision, workingCopySource, baseCommitID, baseBranch }
 }

@@ -1,7 +1,7 @@
 import { guardedAction, type Action } from "../../../shared/gui/action"
 import type { TreeCommit } from "./model"
 
-export type ChangeActionID = "new" | "edit" | "describe" | "bookmark" | "squash" | "push" | "abandon"
+export type ChangeActionID = "diff-main" | "new" | "edit" | "describe" | "bookmark" | "squash" | "push" | "abandon"
 
 export function createChangeActions(input: {
   busy(): boolean
@@ -12,6 +12,8 @@ export function createChangeActions(input: {
   const busy = () => input.busy() ? "Another change operation is still running." : undefined
   const mutable = (target: TreeCommit) => busy() ?? (target.immutable || root(target.commitID) ? "Immutable changes cannot be modified" : undefined)
   const definitions: Array<Omit<Action<TreeCommit>, "run"> & { id: ChangeActionID }> = [
+    { id: "diff-main", label: "Diff against default branch", icon: "branch", description: "Show all changes since the common ancestor with the repository's default branch",
+      disabledReason: (target) => busy() ?? (root(target.commitID) ? "Cannot compare the root commit" : undefined) },
     { id: "new", label: "New change", icon: "branch-out", description: "Create a new change on top of this commit", disabledReason: busy },
     { id: "edit", label: "Edit", icon: "enter", description: "Switch the working copy to this change (jj edit)", disabledReason: mutable },
     { id: "describe", label: "Describe", icon: "edit", description: "Edit the description of this change", disabledReason: mutable },

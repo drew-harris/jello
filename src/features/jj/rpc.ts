@@ -40,6 +40,7 @@ export const Status = Rpc.define({
       input: {
         type: "object", properties: {
           directory: { type: "string" }, commitID: { type: "string", minLength: 40, maxLength: 64 }, path: { type: "string", minLength: 1 },
+          baseCommitID: { type: "string", minLength: 40, maxLength: 64 },
         }, required: ["directory", "commitID", "path"], additionalProperties: false,
       },
       output: {
@@ -251,6 +252,8 @@ export const Status = Rpc.define({
           directory: { type: "string" },
           commitID: { type: "string", minLength: 40, maxLength: 64 },
           knownCommitID: { type: "string", minLength: 40, maxLength: 64 },
+          knownBaseCommitID: { type: "string", minLength: 40, maxLength: 64 },
+          againstMain: { type: "boolean" },
           changeID: { type: "string", minLength: 32, maxLength: 64 },
         },
         required: ["directory"],
@@ -258,7 +261,8 @@ export const Status = Rpc.define({
       },
       output: {
         type: "object",
-        properties: { patch: { type: "string" }, revision: revisionSchema, workingCopySource: { type: "boolean" }, unchanged: { type: "boolean" } },
+        properties: { patch: { type: "string" }, revision: revisionSchema, workingCopySource: { type: "boolean" },
+          baseCommitID: { type: "string" }, baseBranch: { type: "string" }, unchanged: { type: "boolean" } },
         required: ["patch", "revision"],
         additionalProperties: false,
       },

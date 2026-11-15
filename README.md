@@ -117,6 +117,33 @@ are keyed by repository directory and full JJ change ID, so snapshots and rewrit
 do not change their identity. Divergent versions use separate exact-commit tabs.
 Older saved commit/file tab IDs remain readable and are reused when identifiable.
 
+Right-click a change and choose **Diff against default branch** to review the combined
+changes across the branch up to that revision. This opens a separate **JJ PR**
+tab comparing the common ancestor with the default branch to the selected
+revision (PR/three-dot semantics). Changes only on the default branch are excluded. The tab
+refreshes while visible and follows rewrites of non-divergent changes, with the
+same file navigation, context expansion, and working-copy LSP support as regular
+diffs. Detection uses JJ's `trunk()` (including its repo-level override), then local
+`main` or `master` if no non-root trunk is available. JJ's built-in trunk detection
+recognizes remote `main`, `master`, and `trunk` bookmarks on `origin`/`upstream`.
+The base must resolve unambiguously; this action does not fetch from Git.
+
+To override the base in a repo, set `jjDiffBase` in that repo's Jello plugin options:
+
+```jsonc
+{
+  "plugins": [
+    {
+      "package": "/path/to/jello", // Use your existing Jello package/path.
+      "options": { "jjDiffBase": "master" },
+    },
+  ],
+}
+```
+
+The override accepts a literal local bookmark (`develop`) or remote bookmark
+(`master@origin`), not a revset. The PR tab title shows the resolved base branch.
+
 A compact, read-only bottom toolbar shows cards for the current revision, parents,
 and grandparents:
 purple change IDs, blue bookmarks and lock icons for immutable revisions, lime empty markers

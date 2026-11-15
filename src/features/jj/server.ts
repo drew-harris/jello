@@ -14,16 +14,18 @@ import { readSquashDetails, squashBelow } from "./tree/squash.ts"
 import { pushChange } from "./tree/push.ts"
 import { readFileChanges } from "./file-changes.ts"
 import { readWorktreeSessions } from "./tree/worktree-sessions-server.ts"
+import { diffBaseOption } from "./diff/base.ts"
 
 export async function setupJJ(ctx: Plugin.Context) {
+  const diffBase = diffBaseOption(ctx.options.jjDiffBase)
   await ctx.rpc.register(Status, {
     fileChanges: async (input, context) => {
       const { directory, path } = input as { directory: string; path: string }
       return readFileChanges(directory, path, context.signal)
     },
     diffContext: async (input, context) => {
-      const { directory, commitID, path } = input as { directory: string; commitID: string; path: string }
-      return readDiffContext(directory, commitID, path, context.signal)
+      const { directory, commitID, path, baseCommitID } = input as { directory: string; commitID: string; path: string; baseCommitID?: string }
+      return readDiffContext(directory, commitID, path, context.signal, baseCommitID)
     },
     gitPush: async (input, context) => {
       const { directory, commitID } = input as { directory: string; commitID: string }
@@ -85,9 +87,11 @@ export async function setupJJ(ctx: Plugin.Context) {
       return readChangedFiles(directory, context.signal)
     },
     diff: async (input, context) => {
-      const { directory, commitID, changeID, knownCommitID } = input as { directory: string; commitID?: string; changeID?: string; knownCommitID?: string }
+      const { directory, commitID, changeID, knownCommitID, againstMain, knownBaseCommitID } = input as {
+        directory: string; commitID?: string; changeID?: string; knownCommitID?: string; againstMain?: boolean; knownBaseCommitID?: string
+      }
       if (commitID && changeID) throw new Error("Supply a commit ID or change ID, not both.")
-      return readRevisionDiff(directory, changeID ?? commitID ?? "", context.signal, knownCommitID)
+      return readRevisionDiff(directory, changeID ?? commitID ?? "", context.signal, knownCommitID, { againstMain, knownBaseCommitID, diffBase })
     },
     commit: async (input, context) => {
       const { directory, message } = input as { directory: string; message: string }

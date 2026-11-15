@@ -42,7 +42,7 @@ test("a real commit refreshes tree/status/diff once through centralized mutation
     await writeFile(join(directory, "example.ts"), "export const answer = 42\n")
     type Handler = (input: unknown, context: { signal: AbortSignal }) => Promise<unknown>
     let handlers!: Record<string, Handler>
-    await setupJJ({ rpc: { register: async (_contract: unknown, implementation: Record<string, Handler>) => { handlers = implementation } } } as unknown as Plugin.Context)
+    await setupJJ({ options: {}, rpc: { register: async (_contract: unknown, implementation: Record<string, Handler>) => { handlers = implementation } } } as unknown as Plugin.Context)
     const calls: Record<string, number> = {}
     const methods = Object.fromEntries(Object.entries(handlers).map(([name, handler]) => [name, async (input: unknown, options?: { signal: AbortSignal }) => {
       calls[name] = (calls[name] ?? 0) + 1
