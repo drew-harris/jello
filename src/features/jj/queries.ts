@@ -62,7 +62,8 @@ export function diffQuery(cache: QueryClient, repository: Repository, client: Cl
       const changeID = target.changeID ?? (!previous?.data.revision.divergent ? previous?.data.revision.fullChangeID : undefined)
       const update = await client.rpc(Status).diff({ directory: repository.directory,
          ...(changeID ? { changeID } : { commitID: knownCommitID ?? target.commitID }),
-        ...(target.againstMain ? { againstMain: true, knownBaseCommitID: previous?.data.baseCommitID } : {}),
+         ...(target.againstMain ? { againstMain: true } : {}),
+         ...(target.againstMain && previous?.data.baseCommitID ? { knownBaseCommitID: previous.data.baseCommitID } : {}),
         ...(knownCommitID ? { knownCommitID } : {}) }, { signal }) as RevisionDiff
       signal.throwIfAborted()
       if (update.unchanged && !previous) throw new Error("Missing cached diff. Refresh to load it again.")

@@ -6,9 +6,9 @@ export function treeShortcut(event: {
   altKey: boolean
   isComposing: boolean
   repeat: boolean
-}): "down" | "up" | "new" | "bookmark" | "expand" | "abandon" | "diff" | "describe" | "squash" | "edit" | "refresh" | undefined {
+}): "down" | "up" | "new" | "bookmark" | "expand" | "abandon" | "diff" | "describe" | "squash" | "edit" | "refresh" | "push" | undefined {
   if (event.isComposing || event.metaKey || event.ctrlKey || event.altKey) return
-  if (event.shiftKey) return event.repeat ? undefined : event.key === "B" ? "bookmark" : event.key === "S" ? "squash" : undefined
+  if (event.shiftKey) return event.repeat ? undefined : event.key === "B" ? "bookmark" : event.key === "S" ? "squash" : event.key === "P" ? "push" : undefined
   if (event.key === "j") return "down"
   if (event.key === "k") return "up"
   if (event.repeat) return

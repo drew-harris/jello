@@ -326,7 +326,7 @@ export function TreeView(props: { session: MountedSession; focusRequest: number 
       <span class="jello-jj-tree-keyboard-slot">
       <Show when={focused() && !ctx.dialogs.active() && !confirming() && !contextMenu()}>
         <span class="jello-jj-tree-keyboard" role="img" aria-label="Tree keyboard shortcuts active"
-          title="Keyboard shortcuts active: j/k select, n new change, Shift+B set bookmark, l expand files, a abandon (confirmation), d diff, e edit, Enter describe, Shift+S squash below, r refresh">
+          title="Keyboard shortcuts active: j/k select, n new change, Shift+B set bookmark, Shift+P git push, l expand files, a abandon (confirmation), d diff, e edit, Enter describe, Shift+S squash below, r refresh">
           <span aria-hidden="true"><ui.Icon name="keyboard" size="small" /></span>
         </span>
       </Show>

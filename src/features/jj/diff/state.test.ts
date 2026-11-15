@@ -46,6 +46,7 @@ test("PR queries use separate caches and send both cached endpoints on refresh",
   try {
     await flush()
     assert.equal(requests.length, 2)
+    for (const request of requests) assert.equal(Object.hasOwn(request, "knownBaseCommitID"), false)
     assert.equal(queryData(remote.single)?.files[0]?.name, "single.ts")
     assert.equal(queryData(remote.pr)?.files[0]?.name, "pr.ts")
     await remote.pr.refetch({ cancelRefetch: false })

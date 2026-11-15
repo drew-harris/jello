@@ -21,7 +21,7 @@ export function createChangeActions(input: {
     { id: "squash", label: "Squash below", icon: "arrow-down-to-line", description: "Squash this change into a parent (Shift+S)",
       disabledReason: (target) => mutable(target) ?? (!target.parents.length || target.parents.every((id) => root(id) || input.commits().find((commit) => commit.commitID === id)?.immutable === true)
         ? "No mutable direct parent to squash into" : undefined) },
-    { id: "push", label: "Git push", icon: "cloud-upload", description: "Push this change's bookmarks to Git, tracking them if needed (set a bookmark first)",
+    { id: "push", label: "Git push", icon: "cloud-upload", description: "Push this change's bookmarks to Git, tracking them if needed (Shift+P; set a bookmark first)",
       disabledReason: (target) => busy() ?? (root(target.commitID) ? "Cannot push the root commit" : !target.bookmarks.length ? "Set a bookmark on this change before pushing" : undefined) },
     { id: "abandon", label: "Abandon", icon: "circle-ban-sign", description: "Run jj abandon on this change", danger: true, disabledReason: mutable },
   ]

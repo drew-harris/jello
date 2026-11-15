@@ -83,11 +83,12 @@ export async function readRevisionDiff(directory: string, commitID: string, sign
     if (ids.length !== 1) throw new Error(`PR diff requires a single common ancestor with ${baseBranch}.`)
     baseCommitID = ids[0]
   }
+  const base = baseCommitID ? { baseCommitID, ...(baseBranch ? { baseBranch } : {}) } : {}
   // The client already holds the patch for this immutable hash. Avoid the
   // expensive diff command and sending megabytes over the remote connection.
   if (revision.commitID === knownCommitID && baseCommitID === comparison?.knownBaseCommitID)
-    return { revision, workingCopySource, baseCommitID, baseBranch, patch: "", unchanged: true }
+    return { revision, workingCopySource, ...base, patch: "", unchanged: true }
   const diff = await runJJ(["diff", "--ignore-working-copy", "--git", "--context=6",
     ...(baseCommitID ? ["--from", baseCommitID, "--to", revision.commitID] : ["-r", revision.commitID])], options)
-  return { patch: diff.stdout, revision, workingCopySource, baseCommitID, baseBranch }
+  return { patch: diff.stdout, revision, workingCopySource, ...base }
 }
